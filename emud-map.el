@@ -1,5 +1,5 @@
 ; emud-map.el
-;; $Revision: 1.20 $
+;; $Id$
 ;; functions and data structures to add mapping capabilities to emud.
 
 (require 'cl)
@@ -271,7 +271,7 @@
 			       (emud-map-follow-exit last-cmd
 						     (emud-room-exits room)
 						     map short)))
-		    (aref (emud-map-arr map) (cdr new-room)))
+		    (aref (emud-map-arr map) new-room))
 		   ; we have this direction in our exits. 
 		   ; Follow it to the next room.
 		   ((and room 
@@ -320,7 +320,7 @@
       (cond
        ((listp exit)
 	(setq sibling (gethash short (emud-map-sibling-hash map)))
-	(intersection exit sibling))
+	(car (intersection exit sibling)))
        (t
 	exit)))))
 		    
@@ -403,9 +403,9 @@
      (emud-map-add-entrance new-room cmd room)
      (nconc exits (list (cons cmd exit))))
 
-    ((listp exits)
+    ((listp number)
      (emud-map-add-entrance new-room cmd room)
-     (nconc exit (list number))
+     (nconc number (list exit))
      exits)
     
     ((= number exit)
@@ -425,7 +425,7 @@
     ((not (setq number (cdr (assq cmd entrances))))
      (nconc entrances (list (list cmd entrance))))
     (t
-     (emud-warn (format "Adding multiple '%s entrances to room"
+     (emud-warn (format "Adding multiple '%s entrances to room %d"
 			cmd (emud-room-number room)))
      (nconc number (list entrance))))))
 
@@ -733,30 +733,31 @@ lead to room1."
 	  exits      (emud-room-exits (aref map-arr room)))
     (while (and (not (= room to)) exits)
       (setq exit (pop exits))
-      (when (or (not len)
-		(< (length path) (1- len)))
-	(push room been-there))
-      (when exits
-	(push (vector room path exits been-there) room-stack))
-      (setq path (append path (list (car exit)))
-	    room (cdr exit)
-	    exits (emud-room-exits (aref map-arr room)))
-      (when (or (and len		;or have we gone too far?
-		     (< len (length path)))
-		(member room been-there) ;are we going in circles?
-		(not exits))		;or out of exits?
+      (unless (listp (cdr exit))
+	(when (or (not len)
+		  (< (length path) (1- len)))
+	  (push room been-there))
+	(when exits
+	  (push (vector room path exits been-there) room-stack))
+	(setq path (append path (list (car exit)))
+	      room (cdr exit)
+	      exits (emud-room-exits (aref map-arr room)))
+	(when (or (and len		;or have we gone too far?
+		       (< len (length path)))
+		  (member room been-there) ;are we going in circles?
+		  (not exits))		;or out of exits?
+	  
+	  (if room-stack		       ;are there any exits we skiped?
+	      (progn
+					;(print path)
+		(setq vec        (pop room-stack)
+		      room       (aref vec 0)
+		      path       (aref vec 1)
+		      exits      (aref vec 2)
+		      been-there (aref vec 3)))
 
-	(if room-stack		       ;are there any exits we skiped?
-	    (progn
-	      ;(print path)
-	      (setq vec        (pop room-stack)
-		    room       (aref vec 0)
-		    path       (aref vec 1)
-		    exits      (aref vec 2)
-		    been-there (aref vec 3)))
-
-	  (setq exits nil		;no more rooms to check
-		path nil))))		;bail out
+	    (setq exits nil		;no more rooms to check
+		  path nil)))))		;bail out
     (if path
 	(emud-map-walk map from to (1- (length path)) path)
       old-path)))
@@ -787,8 +788,7 @@ lead to room1."
 	sib-str sib-var room  siblings
 	let-point main-point)
  
-    (save-excursion
-      (set-buffer (get-buffer-create file))
+    (with-current-buffer (get-buffer-create file)
       (erase-buffer)
       (insert ";; Emud save file\n") 
       (insert (concat ";; Created on " (current-time-string) "\n")) 
@@ -1151,14 +1151,10 @@ lead to room1."
     map1))
     
 (defun emud-warn (string)
-  (save-excursion
-    (let ((xml-point (save-excursion 
-		      (set-buffer emud-xml-buffer)
-		      (point))))
-      ;(when (>= xml-point 1034588)
-	;(edebug))
-    (set-buffer (get-buffer-create "*Emud-warn*"))
-    (goto-char (point-max))
-    (insert (format "%d : %s\n" 
-		    xml-point
-		    string)))))
+  (let ((xml-point (with-current-buffer emud-xml-buffer
+		     (point))))
+    (with-current-buffer (get-buffer-create "*Emud-warn*")
+      (goto-char (point-max))
+      (insert (format "%d : %s\n" 
+		      xml-point
+		      string)))))
