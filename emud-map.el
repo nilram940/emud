@@ -314,6 +314,7 @@
 
       
 (defun emud-map-follow-exit (cmd exits map short)
+  "Finds room associted with last exit command -- if it exits"
   (let ((exit (cdr (assq cmd exits)))
 	sibling)
     (when exit
@@ -325,6 +326,8 @@
 	exit)))))
 		    
 (defun emud-map-check-sibling-entrances (map room last-cmd new-room)
+  "Compiles list of entances to new-room and checks siblings to create
+   possible merge list"
   (let ((new-siblings (emud-room-siblings new-room))
 	(siblings (emud-room-siblings room))
 	main sibling entrances merge-list merge main
@@ -332,23 +335,31 @@
     (unless (or (car siblings)
 		(car new-siblings)
 		(equal (list (emud-room-number room)) (cdr siblings)))
+      ;;Only check rooms that are not sibling adjacent and
+      ;; skip if room has no siblings.
+      
       (setq siblings (cdr siblings)
-	    new-siblings (cdr new-siblings))
+	    new-siblings (cdr new-siblings)) ; remove flag from siblings lists
       (while new-siblings
+	;; Go through each sibling of new-room and build
+	;; combined entrance list
 	(setq sibling (aref (emud-map-arr map) (pop new-siblings)))
 	(setq entrances 
 	      (append entrances 
 		      (cdr (assq last-cmd (emud-room-entrances sibling))))))
       (when (setq merge-list (intersection siblings entrances))
+	;; compare entrance list to room siblings and create merge-list
 	(setq number (apply 'min merge-list))
 	(setq merge-list (delete number merge-list))
 	(setq main (aref (emud-map-arr map) number))
 	(while merge-list
 	  (setq merge (pop merge-list))
-	  (emud-map-merge-map-rooms2 map main 
+	  ;; attempt to merge each room in merge-list
+	  (emud-map-merge-map-rooms map main 
 				    (aref (emud-map-arr map) merge)))))))
 
 (defun emud-map-check-entrances (map room last-cmd short)
+  "Checks room entrances for possible destinations of the last exit command"
   (let ((siblings (gethash short (emud-map-sibling-hash map)))
 	(rev-cmd (cdr (assq last-cmd emud-map-reverse)))
 	sibling)
@@ -357,6 +368,9 @@
 	 (car (intersection sibling siblings)))))
 
 (defun emud-map-add-room (map room)
+  "Function adds room to the map:
+   -- Finds an available spot and expands the map if necessary
+   -- Finds or creates the correct sibling list"
   (unless (emud-room-number room)
     (let (number
 	  (hole (emud-map-hole map))
@@ -386,6 +400,7 @@
 
 	       
 (defun emud-map-add-exit (room cmd new-room)
+  "Adds an exit from room to new-room"
   (let ((exit (emud-room-number new-room))
 	(obv-exits (emud-room-obv-exits room))
 	number exits )
@@ -448,33 +463,8 @@
 	    (message "Long description mismatch"))
 	(setf (emud-room-long 
 	       emud-map-curr-room) long))))
-		
-    
-;; (defun emud-map-merge-map-rooms (map room1 room2)
-;;   (let ((number (emud-room-number room2))
-;; 	alias merge-list merge)
-;;     (if (eq room1 room2)
-;; 	(message "Attempt to merge room with itself")
-;;       (message (format "Merging %s: %d %d" (emud-room-short room1)
-;; 		       (emud-room-number room1) number))
-;;       (when (eq room2 emud-map-curr-room)
-;; 	  (setq emud-map-curr-room room1))
-;;       (if (setq alias (rassq number (emud-map-alias-list map)))
-;; 	  (setcdr alias (emud-room-number room1)))
-;;       (setq merge-list (emud-map-merge-rooms map room1 room2))
-;;       (emud-map-fix-exits map room1 room2)
-;;       (emud-map-fix-entrances map room1 room2)
-;;       (aset (emud-map-arr map) number nil)
-;;       (setf (emud-map-hole map) (append (emud-map-hole map) (list number)))
-;;       (while merge-list
-;; 	(setq merge (pop merge-list))
-;; 	(setq room1  (aref (emud-map-arr map) (car merge))
-;; 	      room2  (aref (emud-map-arr map) (cdr merge)))
-;; 	(when (and room1 room2)
-;; 	  (emud-map-merge-map-rooms map room1 room2)))))) 
-				    
 
-(defun emud-map-merge-map-rooms2 (map room1 room2)
+(defun emud-map-merge-map-rooms (map room1 room2)
   (let ((number (emud-room-number room2))
 	alias merge-list merge)
     (setq merge (cons (emud-room-number room1)
@@ -658,7 +648,7 @@ lead to room1."
       (setq siblings (remove main (cdr siblings)))
       (setq main (aref map-array main))
       (while siblings
-	(emud-map-merge-map-rooms2 map main 
+	(emud-map-merge-map-rooms map main 
 				  (aref map-array (pop siblings)))))))
 				  
 	 
