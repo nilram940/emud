@@ -268,8 +268,9 @@
 		   ((and room 
 			 (emud-room-exits room)
 			 (setq new-room 
-			       (assq last-cmd
-				     (emud-room-exits room))))
+			       (emud-map-follow-exit last-cmd
+						     (emud-room-exits room)
+						     map short)))
 		    (aref (emud-map-arr map) (cdr new-room)))
 		   ; we have this direction in our exits. 
 		   ; Follow it to the next room.
@@ -312,7 +313,17 @@
  	(setq emud-map-curr-room nil))))))
 
       
-
+(defun emud-map-follow-exit (cmd exits map short)
+  (let ((exit (cdr (assq cmd exits)))
+	sibling)
+    (when exit
+      (cond
+       ((listp exit)
+	(setq sibling (gethash short (emud-map-sibling-hash map)))
+	(intersection exit sibling))
+       (t
+	exit)))))
+		    
 (defun emud-map-check-sibling-entrances (map room last-cmd new-room)
   (let ((new-siblings (emud-room-siblings new-room))
 	(siblings (emud-room-siblings room))
@@ -391,6 +402,11 @@
     ((not (setq number (cdr (assq cmd exits))))
      (emud-map-add-entrance new-room cmd room)
      (nconc exits (list (cons cmd exit))))
+
+    ((listp exits)
+     (emud-map-add-entrance new-room cmd room)
+     (nconc exit (list number))
+     exits)
     
     ((= number exit)
 	      exits)

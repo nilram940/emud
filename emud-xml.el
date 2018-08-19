@@ -109,7 +109,7 @@
     (PROMPT       nil      emud-face-prompt         emud-xml-handler-prompt)
     (SPACE        nil      nil                      emud-xml-handler-SPACE)
     (prompt       nil      emud-face-prompt         emud-xml-handler-prompt)
-    ;(BREAK        nil      nil                      emud-xml-handler-BREAK)
+    (BREAK        nil      nil                      emud-xml-handler-BREAK)
     (CMD          nil      emud-face-CMD            emud-xml-handler-CMD)))
       
 (defvar emud-triggers nil)
@@ -344,7 +344,7 @@
     (with-current-buffer buffer
       (setq case-fold-search nil)
       (goto-char start)
-      (skip-chars-forward " \t") ;skip whitespace
+      ;(skip-chars-forward " \t") ;skip whitespace
       (cond
        ((= (point) (point-max))
 	nil)
@@ -367,7 +367,7 @@
 	      (let ((cmd (xml-substitute-special (cdr (assq 'cmd attr)))))
 		(when (looking-at (regexp-quote cmd))
 		  (goto-char (match-end 0)))))
-	  (skip-chars-forward " \t\n\r")
+	  (skip-chars-forward "\n\r")
 	  (setq region-end (point))
 	  (goto-char region-start)
 	  (setq xml (emud-xml-parse-children region-end))
