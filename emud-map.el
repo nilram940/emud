@@ -15,6 +15,9 @@
 (defvar emud-map-curr-room nil
   "Contains data for the current room when mapping" )
 
+(defvar emud-map-coord [0 0 0]
+  )
+
 (defvar emud-map-room-info nil
   "Alist containing data for the current room")
 
@@ -32,7 +35,7 @@
 
 
 (defconst emud-map-directions
-  `((n  . [0 1 0]) (s  . [0 -1 0]) (e  . [1 0 0])  (w  . [-1 0 0])
+  '((n  . [0 1 0]) (s  . [0 -1 0]) (e  . [1 0 0])  (w  . [-1 0 0])
     (ne . [1 1 0]) (se . [1 -1 0]) (nw . [-1 1 0]) (sw . [-1 -1 0])
     (u  . [0 0 1]) (d  . [0 0 -1])))
 
@@ -198,14 +201,15 @@
       (setq emud-map-last-cmd (match-string 1 string)))))
 
 (defun emud-map-set-room-info (tag data)
-  (let (assoc)
+  (let (assoc delta)
     (cond
      ((setq assoc (assq tag emud-map-room-info))
       (emud-warn (format "Rewriting %s" tag))
-      ;(edebug)
       (setcdr assoc data))
      (t
-      ;(when (eq tag 'cmd)
+      (when (and (eq tag 'cmd)
+		 (setq delta (cdr (assq data emud-map-directions))))
+	(setq emud-map-coord (emud-add-vec emud-map-coord delta)))
 	;(emud-warn (format "Setting cmd to %s" data)))
       (setq emud-map-room-info 
 	    (cons (cons tag data) emud-map-room-info))))))
@@ -300,6 +304,8 @@
 	      (setq emud-map-curr-room nil))
 	    ;check for exits mismatch if so carp.
 	    (when (and room emud-map-curr-room)
+	      (when (emud-room-coord emud-map-curr-room)
+		(setq emud-map-coord (emud-room-coord emud-map-curr-room)))
 	      (emud-map-add-exit room
 				 last-cmd emud-map-curr-room)
 	      (when (eq (emud-room-siblings room)
@@ -312,9 +318,13 @@
 	;else -- the last command was invalid. We're lost.
  	(setq emud-map-curr-room nil))))))
 
+(defun emud-map-set-orgin ()
+  (interactive)
+  (setq emud-map-cood [0 0 0])
+  (setf (emud-room-coord emud-map-curr-room) [0 0 0]))
       
 (defun emud-map-follow-exit (cmd exits map short)
-  "Finds room associted with last exit command -- if it exits"
+  "Finds room associated with last exit command -- if it exits"
   (let ((exit (cdr (assq cmd exits)))
 	sibling)
     (when exit
