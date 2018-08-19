@@ -168,18 +168,17 @@ rejecting one login and prompting again for a username and password.")
       (emud-simple-send proc nil)))
 
 (defun emud-filter (proc string)
-  (save-excursion
-    (set-buffer (process-buffer proc))
+  (with-current-buffer (process-buffer proc)
     (let* ((last-insertion (marker-position (process-mark proc)))
 	   (delta (- (point) last-insertion))
 	   (ie (and comint-last-input-end
 		    (marker-position comint-last-input-end)))
 	   (w (get-buffer-window (current-buffer)))
 	   (ws (and w (window-start w))))
-      (save-excursion
-	(set-buffer emud-xml-buffer)
+      (with-current-buffer emud-xml-buffer
 	(goto-char (point-max))
-	(insert string))
+	(insert string)
+	(insert "<BREAK/>"))
       (goto-char last-insertion)
       (setq emud-xml-curr-char
 	    (emud-xml-parse-buffer proc emud-xml-curr-char emud-xml-buffer))

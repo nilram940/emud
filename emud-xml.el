@@ -109,7 +109,7 @@
     (PROMPT       nil      emud-face-prompt         emud-xml-handler-prompt)
     (SPACE        nil      nil                      emud-xml-handler-SPACE)
     (prompt       nil      emud-face-prompt         emud-xml-handler-prompt)
-    (BREAK        nil      nil                      emud-xml-handler-BREAK)
+    ;(BREAK        nil      nil                      emud-xml-handler-BREAK)
     (CMD          nil      emud-face-CMD            emud-xml-handler-CMD)))
       
 (defvar emud-triggers nil)
@@ -335,7 +335,7 @@
   (insert-before-markers "\n"))
 
 (defun emud-xml-handler-BREAK (proc face node)
-  (edebug))
+  nil)
 
 (defun emud-xml-handler-SPACE (proc face node)
   ;(message "inserting SPACE")
@@ -516,17 +516,100 @@
     (with-current-buffer buffer
       (setq case-fold-search nil)
       (goto-char start)
-      ;(skip-chars-forward " \t") ;skip whitespace
+      (skip-chars-forward " \t") ;skip whitespace
       (cond
        ((= (point) (point-max))
 	nil)
-       ((looking-at "[ \n\t\r]")
+       ((looking-at "[\n\r]")
+	(setq region-start (point))
+	(skip-chars-forward " \n\t\r")
+	(setq xml (list (list 'BR nil)))
+        (list xml region-start (point)))
+       ((looking-at "<\\([^/> \t\n]*\\)")  ;eureka we have xml
+	(setq region-start (point))
+	(setq node-name (match-string 1))
+	(goto-char (match-end 1))
+	(search-forward ">" (point-max) t)
+	(forward-char -2)
+	(cond 
+	 ((looking-at "/>") ;is tag empty?
+	  (forward-char 2)
+	  (when (and (eq (car xml) 'CMD)
+		   (assq 'cmd attr))
+	      (let ((cmd (xml-substitute-special (cdr (assq 'cmd attr)))))
+		(when (looking-at (regexp-quote cmd))
+		  (goto-char (match-end 0)))))
+	  (skip-chars-forward " \t\n\r")
+	  (setq region-end (point))
+	  (goto-char region-start)
+	  (setq xml (emud-xml-parse-children region-end))
+	 (list xml region-start (point)))
+					; find the end tag
+	 ((re-search-forward (concat "</" node-name "\\s-*>") (point-max) t)
+	  (setq region-end (point))
+	  (goto-char region-start)
+	  (setq xml (emud-xml-parse-children region-end))
+	  (list xml region-start region-end))
+	 (
+	  (or (re-search-forward "<prompt>" (point-max) t)
+	      (and (re-search-forward emud-prompt-pattern (point-max) t)
+	 	   (> (- (point-max) region-start) 1000)))
+	       
+	  ;;prompts usually do not appear inside other tags
+	  (goto-char (match-beginning 0))
+	  (setq arg-string (buffer-substring-no-properties region-start (point)))
+	  (setq xml (list (list 'NOXML nil arg-string)))
+	  (list xml region-start (point)))
+
+	 (t ;; can't find an end tag :(
+	  nil)))
+
+       ((looking-at emud-prompt-pattern) ;are we looking at a prompt?
+	(setq region-start (point))
+	(goto-char (match-end 0))
+	(setq arg-string (buffer-substring-no-properties region-start (point)))
+	(setq xml (list (list 'PROMPT nil arg-string)))
+	(list xml region-start (point)))
+       ;(looking-at "^.*died.")
+       (t
+	(setq region-start (point))   ;no xml -- start psuedo-xml
+	(if (re-search-forward 
+	     (concat "\\(?:" emud-prompt-pattern "\\)\\|\\(?:<\\)" ) 
+	     (point-max) t)
+	    (progn
+	      (goto-char (match-beginning 0))
+	      (when (looking-at emud-prompt-pattern)
+		(forward-char -1)
+		(setq region-end (point))
+		(goto-char region-end)))
+	  (goto-char (point-max)))
+	(setq arg-string (buffer-substring-no-properties region-start (point)))
+	(setq xml (list (list 'NOXML nil arg-string)))
+	(list xml region-start (point)))))))
+
+(defun emud-xml-parse-region-old (buffer start)
+  (let (region-start
+	region-end 
+	node-name
+	arg-string
+	arg-start
+	arg-end
+	attr
+	xml)
+    (with-current-buffer buffer
+      (setq case-fold-search nil)
+      (goto-char start)
+      (skip-chars-forward " \t") ;skip whitespace
+      (cond
+       ((= (point) (point-max))
+	nil)
+       ((looking-at "[\n\r]")
 	(setq region-start (point))
 	;(insert "<SPACE space=\"")
 	(skip-chars-forward " \n\t\r")
 					;(insert "\"/>")
-	(setq arg-string (buffer-substring-no-properties region-start (point)))
-	(setq xml (list 'NOXML nil arg-string))
+	;(setq arg-string (buffer-substring-no-properties region-start (point)))
+	(setq xml (list 'BR nil))
 	      
         (list xml region-start (point)))
        ((looking-at "<\\([^/> \t\n]*\\)")  ;eureka we have xml
@@ -614,9 +697,96 @@
 	(list xml region-start (point)))))))
 
 
-(defun emud-xml-parse-children (stop)
-  )
+(defun emud-xml-parse-children (stop &optional top-level)
+  (let ((start (point))
+	children
+	last-child
+	child
+	)
+    (while (< (point) stop)
+      (setq start (point))
+      (cond
+       ((and (looking-at "<")
+	     (setq child (emud-xml-parse-children-xml stop)))
+	(setq children (append children
+			       (when last-child
+				 (if top-level
+				     (list (list 'NOXML nil last-child))
+				   (list last-child)))
+			       child)
+	      last-child nil))
+	(t
+	 (setq last-child (concat last-child
+					
+					(emud-xml-parse-children-str stop))))))
+    (append children (when last-child
+		       (if top-level
+			   (list (list 'NOXML nil last-child))
+		       (list last-child))))))
+      
+      
+(defun emud-xml-parse-children-xml (stop)
+  (let ((start (point))
+	node-name
+	arg-start
+	arg-end
+	attr
+	attr-start
+	region-end
+	xml)
+    (when (looking-at "<\\([^/> \t\n]*\\)")
+      (setq node-name (match-string 1))
+      (setq xml (list (intern node-name)))
+      (goto-char (match-end 1))
+      (setq attr-start (point))
+      (search-forward ">" stop t)
+      (setq arg-start (point))
+      (goto-char attr-start)
+      (while (re-search-forward "\\([a-z]+\\) *= *\"\\([^\"]+\\)\"" arg-start t)
+	(setq attr (append attr (list (cons (intern (match-string-no-properties 1)) (match-string-no-properties 2))))))
+      (goto-char arg-start)
+      (forward-char -2)
+      (setq xml (append xml (list attr)))
 
+      (cond
+       ((looking-at "/>") ;is tag empty?
+	(forward-char 2)
+	(if (and (eq (car xml) 'CMD)
+		 (assq 'cmd attr))
+	    (let ((cmd (xml-substitute-special (cdr (assq 'cmd attr))))
+		  arg-string)
+	      (when (looking-at (regexp-quote cmd))
+		(setq arg-string (buffer-substring-no-properties (point) (match-end 0)))
+		(goto-char (match-end 0))
+		(setq xml (append xml (list arg-string))))
+	      (skip-chars-forward " \t\n\r" stop)
+	      (list xml (list 'BR nil)))
+	  (skip-chars-forward " \t\n\r" stop)
+	  (list xml)))
+       ((re-search-forward (concat "</" node-name "\\s-*>") stop t)
+	(setq region-end (point))
+	(setq arg-end (match-beginning 0))
+	(goto-char arg-start)
+	(setq xml (append xml (emud-xml-parse-children arg-end)))
+	(goto-char region-end)
+	(list xml))
+       (t
+	(goto-char start)
+	nil)))))
+
+(defun emud-xml-parse-children-str (stop)
+  (let ((arg-start (point))
+	(arg-end))
+    (forward-char 1)
+    (setq arg-end
+	  (if (search-forward "<" stop t)
+	      (progn
+		(forward-char -1)
+		(point))
+	    stop))
+    (goto-char arg-end)
+    (buffer-substring-no-properties arg-start arg-end)))
+     
 (defun emud-xml-parse-buffer (proc xml-curr-char xml-buffer) 
   (let (region xml-list xml region-start region-stop)
     
@@ -626,9 +796,9 @@
       (setq xml (pop xml-list)
 	    region-start (pop xml-list)
 	    region-stop (pop xml-list))
-      (setq emud-xml-list (append emud-xml-list (list xml)))
+      (setq emud-xml-list (append emud-xml-list xml))
       (setq xml-curr-char region-stop)
-      (emud-do-xml proc (list xml))
+      (emud-do-xml proc xml)
       (when (and emud-xml-get-command-flag  emud-xml-command-queue)
 	(setq emud-last-command (pop emud-xml-command-queue))
 	(setq emud-xml-get-command-flag nil)
