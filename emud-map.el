@@ -318,10 +318,22 @@
 	;else -- the last command was invalid. We're lost.
  	(setq emud-map-curr-room nil))))))
 
-(defun emud-map-set-orgin ()
+(defun emud-map-set-origin ()
   (interactive)
   (setq emud-map-cood [0 0 0])
   (setf (emud-room-coord emud-map-curr-room) [0 0 0]))
+
+(defun emud-map-make-uniq ()
+  (interactive)
+  (let ((siblings (emud-room-siblings emud-map-curr-room))
+	(number   (emud-room-number emud-map-curr-room)))
+    (if (car siblings)
+	(message "Refusing to uniq difficult room.")
+      (emud-map-merge-all-siblings emud-curr-map emud-map-curr-room)
+      (setf (emud-room-siblings emud-map-curr-room) number)
+      (puthash (emud-room-short room) 
+	       number (emud-map-sibling-hash map)))))
+
       
 (defun emud-map-follow-exit (cmd exits map short)
   "Finds room associated with last exit command -- if it exits"
@@ -385,28 +397,30 @@
     (let (number
 	  (hole (emud-map-hole map))
 	  ;(hole nil)
-	  (siblings))
-      (if hole
-	  (progn
-	    (setq number (pop hole))
-	    (setf (emud-map-hole map) hole))
-	(setq number (emud-map-last map))
-	(incf (emud-map-last map))
-	(when (>= (emud-map-last map) (emud-map-size map))
-	  (emud-map-grow map)))
-
-      (aset (emud-map-arr map) number room)
-      (setf (emud-room-number room) number)
-      (setq siblings 
-	    (gethash (emud-room-short room) (emud-map-sibling-hash map)))
-      (if siblings
-	  (nconc siblings (list number))
-	(setq siblings (list nil number))
-	(puthash (emud-room-short room) 
-	       siblings (emud-map-sibling-hash map)))
-      
-      (setf (emud-room-siblings room) siblings)
-      room)))
+	  (siblings
+	   (gethash (emud-room-short room) (emud-map-sibling-hash map))))
+      (if (and siblings (not (listp siblings)))
+	  (aref (emud-map-arr map) siblings)
+	(if hole
+	    (progn
+	      (setq number (pop hole))
+	      (setf (emud-map-hole map) hole))
+	  (setq number (emud-map-last map))
+	  (incf (emud-map-last map))
+	  (when (>= (emud-map-last map) (emud-map-size map))
+	    (emud-map-grow map)))
+	
+	(aset (emud-map-arr map) number room)
+	(setf (emud-room-number room) number)
+	
+	(if siblings
+	    (nconc siblings (list number))
+	  (setq siblings (list nil number))
+	  (puthash (emud-room-short room) 
+		   siblings (emud-map-sibling-hash map)))
+	
+	(setf (emud-room-siblings room) siblings)
+	room))))
 
 	       
 (defun emud-map-add-exit (room cmd new-room)
