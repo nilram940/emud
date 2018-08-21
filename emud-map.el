@@ -250,7 +250,7 @@
 	(last-cmd (cdr (assq 'cmd emud-map-room-info)))
 	(short    (cdr (assq 'short emud-map-room-info)))
 	(obv-exits (cdr (assq 'obv-exits emud-map-room-info)))
-	new-room number)
+	new-room number coord)
      ;(message (format "%s->%s%s: cmd-Q:%s" last-cmd short
 	; 	       obv-exits emud-xml-command-queue))
     (setq emud-map-room-info nil)
@@ -308,9 +308,23 @@
 		(setq emud-map-coord (emud-room-coord emud-map-curr-room)))
 	      (emud-map-add-exit room
 				 last-cmd emud-map-curr-room)
-	      (when (eq (emud-room-siblings room)
-			(emud-room-siblings emud-map-curr-room))
+	      ;;Set the sibling adjacent flag on rooms with same short
+	      (when (and (not (car (emud-room-siblings room))) 
+			 (eq (emud-room-siblings room)
+			     (emud-room-siblings emud-map-curr-room)))
 		(setcar (emud-room-siblings room) t))
+	      ;;Check for rooms tagged with coordinates and add coordinates
+	      ;; to adjacent rooms
+	      (when (and
+		     (eq (or (car (emud-room-siblings  room))
+			     (car (emud-room-siblings  emud-map-curr-room)))
+			 'coord)
+		     (emud-room-coord room)
+		     (setq coord (cdr (assq last-cmd emud-map-directions))))
+		(setf (emud-room-coord emud-map-curr-room)
+		      (emud-add-vec coord (emud-room-coord room))))
+	      ;;For non-adjacent rooms check entrances for
+	      ;; possible room merges
 	      (unless (or (car (emud-room-siblings room))
 			  (car (emud-room-siblings emud-map-curr-room)))
 		(emud-map-check-sibling-entrances 
@@ -320,7 +334,7 @@
 
 (defun emud-map-set-origin ()
   (interactive)
-  (setq emud-map-cood [0 0 0])
+  (setq emud-map-coord [0 0 0])
   (setf (emud-room-coord emud-map-curr-room) [0 0 0]))
 
 (defun emud-map-make-uniq ()
@@ -331,8 +345,8 @@
 	(message "Refusing to uniq difficult room.")
       (emud-map-merge-all-siblings emud-curr-map emud-map-curr-room)
       (setf (emud-room-siblings emud-map-curr-room) number)
-      (puthash (emud-room-short room) 
-	       number (emud-map-sibling-hash map)))))
+      (puthash (emud-room-short emud-map-curr-room) 
+	       number (emud-map-sibling-hash emud-curr-map)))))
 
       
 (defun emud-map-follow-exit (cmd exits map short)
@@ -510,6 +524,8 @@
 	      (setcdr alias (emud-room-number room1)))
 	  (setq merge-list 
 		(append (emud-map-merge-rooms map room1 room2) merge-list))
+	  (when (emud-room-coord room2)
+	    (setf (emud-room-coord room1) (emud-room-coord room2)))
 	  (emud-map-fix-exits map room1 room2)
 	  (emud-map-fix-entrances map room1 room2)
 	  (aset (emud-map-arr map) number nil)
