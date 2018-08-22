@@ -14,7 +14,7 @@ for a path enter `~/emud`.
 # Use
 
 In order to start emud. First load the code this most easily
-accomplished by adding something like the following to your .emacs:
+accomplished by adding something like the following to your `.emacs`:
 
 ```lisp
 (setq emud-host-alist

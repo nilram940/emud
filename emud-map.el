@@ -491,6 +491,7 @@
 
 
 (emud-get-make-xml-handler 'long)
+;; currently not used
 (defadvice emud-xml-handler-long (before emud-map-long (proc face node))
   (let ((long (car (xml-node-children node))))
     (when (string-match "^It is [^.]+\\.$" long)
@@ -678,6 +679,26 @@ lead to room1."
   (interactive)
   (emud-map-merge-all-siblings emud-curr-map emud-map-curr-room))
 
+(defun emud-map-merge-coord-siblings (map room)
+  (let* ((siblings (copy-seq (emud-room-siblings room)))
+	 (map-array (emud-map-arr map))
+	 check-sibs main test main-room test-room)
+    (if (not (eq (car siblings) 'coord))
+	(emud-warn "Attempting merge of non-coord room")
+      (setq siblings (sort (cdr siblings) '<))
+      (while siblings
+	(setq main (pop siblings))
+	(setq check-sibs siblings)
+	(while check-sibs
+	  (setq test (pop check-sibs))
+	  (setq test-room (aref map-array test)
+		main-room (aref map-array main))
+	  (when (eq (emud-room-coord test-room)
+		    (emud-room-coord main-room))
+	    (setq siblings (delq test siblings))
+	    (emud-map-merge-map-rooms map main-room test-room)))))))
+		      
+				 
 (defun emud-map-merge-all-siblings (map room)
   (let* ((siblings (emud-room-siblings room))
 	 (main (apply 'min (cdr siblings)))
