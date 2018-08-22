@@ -3,13 +3,13 @@ This project contains the elisp files for an emacs mud client, emud.
 # Installation
 
 This code is in early development and has several paths hard-coded. In
-particular it expects all files to be installed in ~/emud.  (You can
+particular it expects all files to be installed in `~/emud`.  (You can
 change the path by changing line 6 of emud.el to point to the correct
 path)
 
-In order to install emud place all files in ~/emud and byte compile
-them.  Inside emacs type M-x byte-recompile-directory. When prompted
-for a path enter ~/emud.
+In order to install emud place all files in `~/emud` and byte compile
+them.  Inside emacs type `M-x byte-recompile-directory`. When prompted
+for a path enter `~/emud`.
 
 # Use
 
@@ -34,11 +34,13 @@ To start emud type M-x emud and when prompted enter a name from the list (i.e. n
 # XML
 
 Emud works by parsing xml code emitted from the mud. This has only
-been tested on nannyMUD (mud.lysator.liu.se 2000) and I know of no
+been tested on nannyMUD (`mud.lysator.liu.se 2000`) and I know of no
 other mud that supports xml in any form. This client will work best
 when xml is enabled on nannymud. The command is:
 
+```
 toggle xml
+```
 
 # BUGS
 
