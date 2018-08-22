@@ -679,6 +679,33 @@ lead to room1."
   (interactive)
   (emud-map-merge-all-siblings emud-curr-map emud-map-curr-room))
 
+(defun emud-map-coord-adj (map room)
+  "Add coordinates to rooms adjacent to room"
+  (let* ((exits (emud-room-exits room))
+	 (map-array (emud-map-arr map))
+	 (coord (emud-room-coord room))
+	 (flag (car (emud-room-siblings room)))
+	 exit
+	 delta
+	 adj-room)
+    (unless (and (eq flag 'coord) coord)
+      (while exits
+	(setq exit (pop exits))
+	(when (setq coord (emud-map-walk-coord (car exit) coord))
+	  (setq adj-room (aref map-array (cdr exit)))
+	  (if (emud-room-coord adj-room)
+	      (when (eq (emud-room-coord adj-room) coord)
+		(emud-map-coord-adj map adj-room))
+	    (setf (emud-room-coord adj-room) coord)
+	    (emud-map-coord-adj map adj-room)))))))
+	
+
+  (defun emud-map-walk-coord (dir coord)
+    (let (delta)
+      (when (setq delta (assq dir  emud-map-directions))
+	(emud-add-vec (cdr delta) coord))))
+      
+    
 (defun emud-map-merge-coord-siblings (map room)
   (let* ((siblings (copy-seq (emud-room-siblings room)))
 	 (map-array (emud-map-arr map))
