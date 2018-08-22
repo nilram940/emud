@@ -33,16 +33,21 @@ To start emud type M-x emud and when prompted enter a name from the list (i.e. n
 
 # XML
 
-Emud works by parsing xml code emitted fromt the mud. This has only
+Emud works by parsing xml code emitted from the mud. This has only
 been tested on nannyMUD (mud.lysator.liu.se 2000) and I know of no
 other mud that supports xml in any form. This client will work best
-when xml is emabled on nannymud. The command is:
+when xml is enabled on nannymud. The command is:
 
 toggle xml
 
 # BUGS
 
-Keep in mind this code is in early developement and has many bugs. It
-could leave your charcter stranded at the most inopportune time and
+Keep in mind this code is in early development and has many bugs. It
+could leave your character stranded at the most inopportune time and
 get your character killed.
 
+## Global variables
+
+emud.el currently uses a number of global variables. They are kept
+that way to facilitate debugging. As a result **multi-playing is not
+possible**
