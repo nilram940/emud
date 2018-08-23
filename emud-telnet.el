@@ -9,7 +9,7 @@
 (defvar emud-host-alist nil)
 (defvar emud-new-line "\r")
 (defvar emud-mode-map nil)
-(defvar emud-prompt-pattern "^[^#$%<>\n]*[#$%>] *")
+(defvar emud-prompt-pattern "^Help: [^>]*> *\\|^Mail\.*\\[.*[0-9]) *")
 (defvar emud-replace-c-g nil)
 (make-variable-buffer-local
  (defvar emud-remote-echoes t
@@ -177,7 +177,7 @@ rejecting one login and prompting again for a username and password.")
 	   (ws (and w (window-start w))))
       (with-current-buffer emud-xml-buffer
 	(goto-char (point-max))
-	(insert string)
+	(insert (delete ?\r string))
 	(insert "<BREAK/>"))
       (goto-char last-insertion)
       (setq emud-xml-curr-char
