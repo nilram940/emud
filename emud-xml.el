@@ -353,7 +353,7 @@
 	(skip-chars-forward " \n\t\r")
 	(setq xml (list (list 'BR nil)))
         (list xml region-start (point)))
-       ((looking-at "<\\([^/> \t\n]*\\)")  ;eureka we have xml
+       ((looking-at "<\\([a-zA-Z_]+\\)")  ;eureka we have xml
 	(setq region-start (point))
 	(setq node-name (match-string 1))
 	(goto-char (match-end 1))
@@ -402,7 +402,7 @@
        (t
 	(setq region-start (point))   ;no xml -- start psuedo-xml
 	(if (re-search-forward 
-	     (concat "\\(?:" emud-prompt-pattern "\\)\\|\\(?:<\\)" ) 
+	     (concat emud-prompt-pattern "\\|<[a-zA-Z]" ) 
 	     (point-max) t)
 	    (progn
 	      (goto-char (match-beginning 0))
@@ -453,7 +453,7 @@
 	attr-start
 	region-end
 	xml)
-    (when (looking-at "<\\([^/> \t\n]*\\)")
+    (when (looking-at "<\\([a-zA-Z_]+\\)")
       (setq node-name (match-string 1))
       (setq xml (list (intern node-name)))
       (goto-char (match-end 1))
