@@ -1,4 +1,4 @@
-#Introduction
+# Introduction
 
 Mapping is a tough problem. There is very little to data to uniquely
 identify rooms. The strategy I used relies on the short description
@@ -7,7 +7,7 @@ exits and long description in the past but those can change on rooms
 (e.g. open a window and now there is a new obvious exit and the room
 description now indicates the window is open)
 
-#Rooms
+# Rooms
 
 The data structure itself is a graph each node contains information
 about the particular room. The most relevant information is the short
@@ -38,14 +38,14 @@ The short description is pretty self explanatory. It is simply the
 short description of the current room "Village church", "Village
 green", etc.
 
-#Map
+# Map
 
 The map itself is an array with rooms as elements along with
 maintenance variables and a sibling hash. The sibling hash maps a
 short description to a sibling list. This is used to find the correct
 sibling hase for new rooms.
 
-#Strategy
+# Strategy
 
 The mapping strategy is fairly conservative. The client "watches"
 your moves around the mud and determines the commands that lead you to
@@ -59,7 +59,7 @@ For example if you go `s` from church to green and `n` from green to
 church, your map will contain two copies of church -- one with a south
 exit to green and one with no exits.
 
-##merging
+## Merging
 
 If you continue to move around your will set off merge events for the
 example above if you go `s` from church again. The client will recognize
@@ -73,7 +73,7 @@ The merging is more aggressive with non-sibling adjacent rooms and
 less aggressive if two rooms are sibling adjacent.
 
 
-#Future
+# Future
 
 ## Mazes
 The mapping currenlty does not support mazes. The merging strategy is
