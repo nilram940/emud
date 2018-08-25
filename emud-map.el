@@ -530,8 +530,9 @@
 	  (emud-map-fix-exits map room1 room2)
 	  (emud-map-fix-entrances map room1 room2)
 	  (aset (emud-map-arr map) number nil)
-	  (setf (emud-map-hole map) 
-		(append (emud-map-hole map) (list number))))))))
+	  (unless (memq number (emud-room-siblings room1))
+	    (setf (emud-map-hole map) 
+		  (append (emud-map-hole map) (list number)))))))))
 	
 
 				    
@@ -655,8 +656,9 @@ lead to room1."
 				(list entrance1))))))
     
     (setq entrances (append entrances entrances2))
-    (setf (emud-room-entrances room1) entrances) 
-    (delete (emud-room-number room2) (emud-room-siblings room1))
+    (setf (emud-room-entrances room1) entrances)
+    (setf (emud-room-siblings room1)
+	  (delete (emud-room-number room2) (emud-room-siblings room1)))
     (setq exits1 (emud-room-exits room1))
     (while exits1
       (setq exit1 (pop exits1))
@@ -688,10 +690,11 @@ lead to room1."
 	 exit
 	 delta
 	 adj-room)
-    (unless (and (eq flag 'coord) coord)
+    (when (and (eq flag 'coord) coord)
       (while exits
 	(setq exit (pop exits))
-	(when (setq coord (emud-map-walk-coord (car exit) coord))
+	(when (setq coord (emud-map-walk-coord (car exit)
+					       (emud-room-coord room)))
 	  (setq adj-room (aref map-array (cdr exit)))
 	  (if (emud-room-coord adj-room)
 	      (when (eq (emud-room-coord adj-room) coord)
@@ -715,15 +718,19 @@ lead to room1."
       (setq siblings (sort (cdr siblings) '<))
       (while siblings
 	(setq main (pop siblings))
-	(setq check-sibs siblings)
-	(while check-sibs
-	  (setq test (pop check-sibs))
-	  (setq test-room (aref map-array test)
-		main-room (aref map-array main))
-	  (when (eq (emud-room-coord test-room)
-		    (emud-room-coord main-room))
-	    (setq siblings (delq test siblings))
-	    (emud-map-merge-map-rooms map main-room test-room)))))))
+	(setq main-room (aref map-array main))
+	(when (and main-room
+		   (emud-room-coord main-room))
+	  (setq check-sibs siblings)
+	  (while check-sibs
+	    (setq test (pop check-sibs))
+	    (setq test-room (aref map-array test))
+		  (when (and test-room 
+			     (emud-room-coord test-room)
+			     (equal (emud-room-coord test-room)
+				    (emud-room-coord main-room)))
+		    (setq siblings (delq test siblings))
+		    (emud-map-merge-map-rooms map main-room test-room))))))))
 		      
 				 
 (defun emud-map-merge-all-siblings (map room)
@@ -912,7 +919,7 @@ lead to room1."
 			   (emud-room-exits room))
 		   (format "                               :entrances '%S\n"
 			   (emud-room-entrances room))		 
-		   (format "                               :coord %s\n"
+		   (format "                               :coord%s\n"
 			   (emud-room-coord room))		 
 		   (format "                               :extra '%S\n"
 			   (emud-room-extra room))		 

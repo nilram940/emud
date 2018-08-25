@@ -89,21 +89,21 @@
       (while exits
 	(setq exit (car (pop exits)))
 	(cond 
-	 ((string= "e" exit)
+	 ((eq 'e exit)
 	  (aset (aref strings 1) 4 ?-))
-	 ((string= "w" exit)
+	 ((eq 'w exit)
 	  (aset (aref strings 1) 0 ?-))
-	 ((string= exit "n")
+	 ((eq exit 'n)
 	  (aset (aref strings 0) 2 ?|))
-	 ((string= exit "s")
+	 ((eq exit 's)
 	  (aset (aref strings 2) 2 ?|))
-	 ((string= exit "nw")
+	 ((eq exit 'nw)
 	  (aset (aref strings 0) 1 ?\\))
-	 ((string= exit "se")
+	 ((eq exit 'se)
 	  (aset (aref strings 2) 4 ?\\))
-	 ((string= exit "ne")
+	 ((eq exit 'ne)
 	  (aset (aref strings 0) 3 ?/))
-	 ((string= exit "sw")
+	 ((eq exit 'sw)
 	  (aset (aref strings 2) 0 ?/))))
       (setq face (if curr-room
 		     'emud-curr-room-face
@@ -132,7 +132,7 @@
 
 (defun emud-picture-insert-string (string)
   (let ((here (point)) (len (length string)))
-    (move-to-column-force (+ (current-column) len))
+    (move-to-column (+ (current-column) len) t )
     (delete-region here (point))
     (insert string)))
     
