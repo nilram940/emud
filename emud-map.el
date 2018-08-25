@@ -61,6 +61,9 @@
   number alias short type obv-exits long coord exits entrances 
   siblings extra)
 
+(defmacro emud-map-get-room (map number)
+  `(aref (emud-map-arr ,map) ,number))
+
 (define-key emud-mode-map "\C-c\C-m" 'emud-toggle-mapping)
 (defun emud-toggle-mapping ()
   (interactive)
@@ -244,7 +247,7 @@
 
 
 		  
-(defun emud-map-new-room ()
+(defun emud-map-new-room-old ()
   (let ((map emud-curr-map)
 	(room emud-map-curr-room)
 	(last-cmd (cdr (assq 'cmd emud-map-room-info)))
@@ -331,6 +334,174 @@
 		 map room last-cmd emud-map-curr-room))))
 	;else -- the last command was invalid. We're lost.
  	(setq emud-map-curr-room nil))))))
+
+
+(defun emud-map-new-room ()
+  (let ((map emud-curr-map)
+	(source-room emud-map-curr-room) 
+					; room we are moving from
+	(last-cmd (cdr (assq 'cmd emud-map-room-info)))
+					;command that is causing the move
+					;gathered by handlers
+	(dest-short    (cdr (assq 'short emud-map-room-info)))
+					;short description of the destination
+					;room as gathered by handlers
+	(dest-exits (cdr (assq 'obv-exits emud-map-room-info)))
+					;short obvious exits of the destination
+					;room as gathered by handlers
+	dest-room
+					;room we are moving to
+	dest-number)
+					;room number of destination room
+
+	
+     (emud-warn (format "(%d) %s->%s%s: cmd-Q:%s" (if source-room (emud-room-number source-room) -1) last-cmd dest-short
+			dest-exits emud-xml-command-queue))
+    (setq emud-map-room-info nil)
+    ;; We've consumed all the information gathered by handlers and so
+    ;; we destroy the data to prevent it from polluting the next room.
+    
+    (cond
+     ((not (stringp dest-short))
+      (setq emud-map-curr-room nil))
+					; We have no short desctription and
+					; cannot proceed.
+					; We are lost.
+
+       ;; The following two lines check that we actually have a
+       ;; movement command and it is not listed in the command blacklist
+       ;; this is likely rendered redundant by the "or" checks below.
+     ((and
+       last-cmd
+       (not (memq last-cmd emud-map-bad-commands))
+      					; we have a good command
+      
+      ;; The following or checks to ensure that we have actually moved to a
+      ;; new room. It does this in three phases noted below.
+       (or (not source-room) 
+					;If there is no current room. There
+					;is no need for further checks
+	   (not (string= dest-short (emud-room-short source-room)))
+					;If dest short and source short do
+					;not match, movement likely occured
+	   (assq last-cmd emud-map-reverse)))
+                                        ;Both source and destination have the
+					;same short. If the last command was
+					;a direction command, we conclude that
+					;movement has occured and proceed.
+
+      (setq dest-room ;dest-room setq
+	    (cond  
+	     ;; This cond attempts to find the destination room.
+	     (;; First we check the exit list of the source room for one that
+	      ;; matches the current command. If and exit exits we follow it
+	      ;; and conclude that the destination room is the exit
+	      (and source-room 
+		   (emud-room-exits source-room)
+		   (setq dest-number 
+			  (emud-map-follow-exit last-cmd
+						(emud-room-exits source-room)
+						     map dest-short)))
+	      ;; Once we've found the destination in the exit list
+	      ;; we return the new room as the destination room 
+	      (emud-map-get-room map dest-number))
+	     
+	     (;; Next we check the entrances of the source room for entrances
+	       ;; leading from the destination room with a reversed command.
+	      (and source-room 
+		   (setq dest-number 
+			 (emud-map-check-entrances map 
+						   source-room last-cmd dest-short)))
+	       ;; Once we've found a matching entrance, we return the
+	       ;; new room as the destination room 
+	       (emud-map-get-room map dest-number))
+	     
+	      (t
+	       ;; We are unable to find the destination-room so we create a
+	       ;; new room and add it to the map. 
+	       (emud-map-add-room map (make-emud-room 
+					  :short dest-short
+					  :obv-exits dest-exits)))))
+					; end dest-room setq
+
+       ;; The next phase is to check the sanity of the destination room
+       ;; First verify the that the short descriptions match.
+       (unless (string= (emud-room-short dest-room) dest-short)
+					;Do the short descriptions match?
+
+	 (emud-warn (format "Short mismatch: %s %s" 
+			    (emud-room-short dest-room) dest-short))
+	 (setq dest-room nil))
+					; No. We are lost. Carp and delete
+					; the destination room
+					; This really should not happen.
+       
+       ;; Next verify that the exits match. Obvious exits can change
+       ;; but this is worth a warning.
+       (when (and dest-room 
+		  (not (string= (emud-room-obv-exits dest-room)
+				dest-exits)))
+					; Do the exits match?
+	 (emud-warn (format "Obvious exit mismatch %s %s"
+			    (emud-room-obv-exits dest-room) 
+			    dest-exits)))
+					;No. Carp and move on.
+
+       ;; The next phase is to clean up the global map
+       ;; this includes adding exits, entrances and coordinates as appropriate
+       ;; As well as looking for merge opportunitys.
+
+       (setq emud-map-curr-room dest-room)
+					; The merging process can delete
+					; dest-room but will preserve
+					; curr room so we set curr-room early.
+
+       ;; First verify that we have both a source and destination room
+       (when (and source-room dest-room)
+	 ;; Check if the the destination room has a coordinate.
+	 ;; if so update the global coordinate. Keep in mind
+	 ;; the global coordinate is NOT authorative.
+	 (when (emud-room-coord dest-room)
+	   (setq emud-map-coord (emud-room-coord dest-room)))
+	 ;; Add a last command exit leading from source-room to dest-room
+	 ;; via last-cmd
+	 (emud-map-add-exit source-room
+			    last-cmd dest-room)
+	 
+	 ;; Check if the source and destination rooms are siblings
+	 ;; (have the same short). Set the sibling adjacent flag if it is
+	 ;; not set already. And fix coordinates if appropriate.
+
+	 ;; Check if rooms share the same sibling list -- this indicates
+	 ;; that they are siblings and have the same short
+	 (if 
+	     (eq (emud-room-siblings source-room)
+		 (emud-room-siblings dest-room))
+	   
+	   ;; Check the state of the sibling adjacent flag
+	   (cond
+	    ;; if the flag is not set set it to t
+	    ((not (car (emud-room-siblings dest-room)))
+		  (setcar (emud-room-siblings source-room) t))
+	     
+	     ;; If the flag is coord and the source room has a coordinate
+	     ;; compute the coordinate and add it to the destination room
+	     ((and (eq (car (emud-room-siblings dest-room)) 'coord)
+		      (emud-room-coord source-room))
+		   (setf (emud-room-coord dest-room)
+			 (emud-map-walk-coord
+			  last-cmd
+			  (emud-room-coord source-room)))))
+	   ;; If room are not  sibling adjacent check entrances for
+	   ;; possible room merges
+	   (emud-map-check-sibling-entrances 
+	    map source-room last-cmd dest-room))))
+       
+				
+
+     ;; If we determing that no move was made. Do nothing
+     ))
+  emud-map-curr-room)
 
 (defun emud-map-set-origin ()
   (interactive)
@@ -1007,7 +1178,7 @@ lead to room1."
 	  (when (and (setq exit (assq command exits))
 		     (= (cdr exit) number))
 	    (setf (emud-room-exits other-room) (delq exit exits))))))))
-      
+
 (defun emud-map-defrag (map)
   (let ((count 0)
 	(array (emud-map-arr map))
