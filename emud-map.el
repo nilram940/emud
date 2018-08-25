@@ -473,40 +473,41 @@
 
        ;; First verify that we have both a source and destination room
        (when (and source-room dest-room)
-	 ;; Check if the the destination room has a coordinate.
-	 ;; if so update the global coordinate. Keep in mind
-	 ;; the global coordinate is NOT authorative.
-	 (when (emud-room-coord dest-room)
-	   (setq emud-map-coord (emud-room-coord dest-room)))
 	 ;; Add a last command exit leading from source-room to dest-room
 	 ;; via last-cmd
 	 (emud-map-add-exit source-room
 			    last-cmd dest-room)
+
+	 ;; If the flag of either the source or destination room is  coord
+	 ;; and the source room has a coordinate compute the coordinate and
+	 ;; add it to the destination room
+	 (when (and (emud-room-coord source-room)
+		    (or (eq (car (emud-room-siblings dest-room)) 'coord)
+			(eq (car (emud-room-siblings source-room)) 'coord)))
+	   
+	   (setf (emud-room-coord dest-room)
+		 (emud-map-walk-coord
+		  last-cmd
+		  (emud-room-coord source-room))))
 	 
 	 ;; Check if the source and destination rooms are siblings
 	 ;; (have the same short). Set the sibling adjacent flag if it is
-	 ;; not set already. And fix coordinates if appropriate.
+	 ;; not set already.
+
+
+
 
 	 ;; Check if rooms share the same sibling list -- this indicates
 	 ;; that they are siblings and have the same short
-	 (if 
-	     (eq (emud-room-siblings source-room)
-		 (emud-room-siblings dest-room))
-	   
-	   ;; Check the state of the sibling adjacent flag
-	   (cond
-	    ;; if the flag is not set set it to t
-	    ((not (car (emud-room-siblings dest-room)))
-		  (setcar (emud-room-siblings source-room) t))
+
+	 (if
+	     (and
+	      (eq (emud-room-siblings source-room)
+		  (emud-room-siblings dest-room))
+	      (not (car (emud-room-siblings dest-room))))
 	     
-	     ;; If the flag is coord and the source room has a coordinate
-	     ;; compute the coordinate and add it to the destination room
-	     ((and (eq (car (emud-room-siblings dest-room)) 'coord)
-		      (emud-room-coord source-room))
-		   (setf (emud-room-coord dest-room)
-			 (emud-map-walk-coord
-			  last-cmd
-			  (emud-room-coord source-room)))))
+	     (setcar (emud-room-siblings source-room) t)
+	     
 	   ;; If room are not  sibling adjacent check entrances for
 	   ;; possible room merges
 	   (emud-map-check-sibling-entrances 
@@ -516,12 +517,27 @@
 
      ;; If we determing that no move was made. Do nothing
      ))
+  ;; Check if the the current room has a coordinate.
+  ;; if so update the global coordinate. Keep in mind
+  ;; the global coordinate is NOT authorative.
+  (when (and emud-map-curr-room (emud-room-coord emud-map-curr-room))
+    (setq emud-map-coord (emud-room-coord emud-map-curr-room)))
   emud-map-curr-room)
 
 (defun emud-map-set-origin ()
   (interactive)
   (setq emud-map-coord [0 0 0])
-  (setf (emud-room-coord emud-map-curr-room) [0 0 0]))
+  (setf (emud-room-coord emud-map-curr-room) [0 0 0])
+  (emud-map-add-alias "origin"))
+
+(defun emud-map-set-coord ()
+  (interactive)
+  (setcar (emud-room-siblings emud-map-curr-room) 'coord)
+  (unless (emud-room-coord emud-map-curr-room)
+    (setf (emud-room-coord emud-map-curr-room) emud-map-coord))
+  (emud-map-coord-adj emud-curr-map emud-map-curr-room)
+  (emud-map-merge-coord-siblings emud-curr-map emud-map-curr-room))
+  
 
 (defun emud-map-make-uniq ()
   (interactive)
@@ -536,7 +552,7 @@
 
       
 (defun emud-map-follow-exit (cmd exits map short)
-  "Finds room associated with last exit command -- if it exits"
+  "Finds room associated with last exit command -- if it exists"
   (let ((exit (cdr (assq cmd exits)))
 	sibling)
     (when exit
