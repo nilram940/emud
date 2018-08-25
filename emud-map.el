@@ -64,6 +64,9 @@
 (defmacro emud-map-get-room (map number)
   `(aref (emud-map-arr ,map) ,number))
 
+(defmacro emud-map-get-siblings (map short)
+  `(gethash ,short (emud-map-sibling-hash ,map)))
+
 (define-key emud-mode-map "\C-c\C-m" 'emud-toggle-mapping)
 (defun emud-toggle-mapping ()
   (interactive)
@@ -379,7 +382,7 @@
       ;; The following or checks to ensure that we have actually moved to a
       ;; new room. It does this in three phases noted below.
        (or (not source-room) 
-					;If there is no current room. There
+					;If there is no current room, there
 					;is no need for further checks
 	   (not (string= dest-short (emud-room-short source-room)))
 					;If dest short and source short do
@@ -394,8 +397,8 @@
 	    (cond  
 	     ;; This cond attempts to find the destination room.
 	     (;; First we check the exit list of the source room for one that
-	      ;; matches the current command. If and exit exits we follow it
-	      ;; and conclude that the destination room is the exit
+	      ;; matches the current command. If a matching exit is found
+	      ;; we conclude that the destination room is the exit
 	      (and source-room 
 		   (emud-room-exits source-room)
 		   (setq dest-number 
@@ -415,8 +418,20 @@
 	       ;; Once we've found a matching entrance, we return the
 	       ;; new room as the destination room 
 	       (emud-map-get-room map dest-number))
+
+	     (;; Next check for coordinate labeled rooms and attempt to find
+	      ;; a room at the calculated coordinate
+	      
+	      (and source-room
+		   (setq dest-number
+			 (emud-map-check-coord-siblings map
+							source-room
+							last-cmd dest-short)))
+	      ;; Once we've found a room with a matching coordinate, return the
+	      ;; new room as the destination room  
+	      (emud-map-get-room map dest-number))
 	     
-	      (t
+	     (t
 	       ;; We are unable to find the destination-room so we create a
 	       ;; new room and add it to the map. 
 	       (emud-map-add-room map (make-emud-room 
@@ -852,6 +867,29 @@ lead to room1."
   (interactive)
   (emud-map-merge-all-siblings emud-curr-map emud-map-curr-room))
 
+(defun emud-map-check-coord-siblings (map source-room cmd short)
+  "When moving from source-room into room with short description short,
+check it's sibling list for room with appropriate coordinates"
+  (let ((siblings (emud-map-get-siblings map short))
+	(source-coord (emud-room-coord source-room))
+	dest-coord
+	check-function
+	check-room)
+    (when (and
+	   siblings
+	   (eq (car siblings) 'coord)
+	   source-coord
+	   (setq dest-coord (emud-map-walk-coord cmd source-coord)))
+      
+      (setq check-function
+	    (lambda (number)
+	      (equal (emud-room-coord (emud-map-get-room map number)) dest-coord)))
+      (setq siblings (remove-if-not check-function (cdr siblings)))
+      (unless (cdr siblings)
+	(car siblings)))))
+    
+      
+      
 (defun emud-map-coord-adj (map room)
   "Add coordinates to rooms adjacent to room"
   (let* ((exits (emud-room-exits room))
