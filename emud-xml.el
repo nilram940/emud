@@ -219,8 +219,8 @@
 		  "")))
     (emud-warn (format "Adding %s to cmd queue: %s" cmd emud-xml-command-queue))
     (setq emud-xml-command-queue (append emud-xml-command-queue (list cmd))))
-  (unless (cdr emud-xml-command-queue)
-    (setq emud-xml-get-command-flag t))
+  ;;(unless (cdr emud-xml-command-queue)
+  ;;  (setq emud-xml-get-command-flag t))
  ; (message (format "emud-xml-command-queue: %S" emud-xml-command-queue))
   (emud-xml-default-handler proc face node))
 
@@ -352,20 +352,29 @@
 	region-end
 	xml
 	(stop-regex (concat "\\("
-			    (mapconcat 'identity
-				       (list
-					emud-prompt-pattern
-					"</[A-Za-z_]+>"
-					"<[A-Za-z_]+/>"
-					"^Connection closed.*")
-				       "\\|")
-			    "\\)[^<]*")))
+			     (mapconcat 'identity
+					(list
+					 emud-prompt-pattern
+					 "</[A-Za-z_]+>"
+					 "<[A-Za-z_]+/>"
+					 "^Connection closed.*")
+					"\\|")
+			     "\\)[^<]*")))
+
     (with-current-buffer buffer
       (setq case-fold-search nil)
       (goto-char start)
       (setq region-start (point))
-      (when (re-search-forward stop-regex (point-max) t)
-	(setq region-end (match-end 0))
+      (setq region-end
+	    (cond
+	     ((and (looking-at "<\\([A-Za-z_]+\\)")
+		   (re-search-forward (concat "</" (match-string 1) ">[^<]*") (point-max) t))
+	      (match-end 0))
+	    ((re-search-forward stop-regex (point-max) t)
+	     (match-end 0))
+	    (t nil)))
+      
+      (when region-end
 	(goto-char region-start)
 	(setq xml (emud-xml-parse-children region-end t))
 	(setq region-end (max region-end (point)))
