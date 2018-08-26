@@ -116,9 +116,16 @@
 (defvar emud-xml-get-command-flag nil)
 (defvar emud-xml-command-queue nil)
 (defvar emud-last-command nil)
+(defvar emud-xml-list nil)
 (defvar emud-new-command-hook nil)
 
-	
+
+(defun emud-xml-init ()
+  (setq emud-xml-get-command-flag nil
+	emud-xml-command-queue nil
+	emud-xml-list nil
+	emud-last-command nil))
+
 
 (defun emud-do-xml (proc xml)
   (let* ((node (car xml))
@@ -137,6 +144,11 @@
 	  (goto-char (point-max))
 	  (funcall handler proc face node))
       (funcall handler proc face node)) 
+    (when (and emud-xml-get-command-flag  emud-xml-command-queue)
+      (emud-warn (format "Popping cmd queue: %s" emud-xml-command-queue))
+      (setq emud-last-command (pop emud-xml-command-queue))
+      (setq emud-xml-get-command-flag nil)
+      (run-hooks 'emud-new-command-hook))
 
       
     (when tail
@@ -174,7 +186,7 @@
 (defun emud-xml-default-handler (proc face node)
   (let ((children (xml-node-children node))
 	 child)
-    
+      
     (while children
       (setq child (pop children))
       (cond
@@ -205,7 +217,10 @@
       (setq cmd (if cmd 
 		    (xml-substitute-special cmd)
 		  "")))
+    (emud-warn (format "Adding %s to cmd queue: %s" cmd emud-xml-command-queue))
     (setq emud-xml-command-queue (append emud-xml-command-queue (list cmd))))
+  (unless (cdr emud-xml-command-queue)
+    (setq emud-xml-get-command-flag t))
  ; (message (format "emud-xml-command-queue: %S" emud-xml-command-queue))
   (emud-xml-default-handler proc face node))
 
@@ -334,6 +349,30 @@
 
 (defun emud-xml-parse-region2 (buffer start)
   (let (region-start
+	region-end
+	xml
+	(stop-regex (concat "\\("
+			    (mapconcat 'identity
+				       (list
+					emud-prompt-pattern
+					"</[A-Za-z_]+>"
+					"<[A-Za-z_]+/>"
+					"^Connection closed.*")
+				       "\\|")
+			    "\\)[^<]*")))
+    (with-current-buffer buffer
+      (setq case-fold-search nil)
+      (goto-char start)
+      (setq region-start (point))
+      (when (re-search-forward stop-regex (point-max) t)
+	(setq region-end (match-end 0))
+	(goto-char region-start)
+	(setq xml (emud-xml-parse-children region-end t))
+	(setq region-end (max region-end (point)))
+	(list xml region-start region-end)))))
+	    
+(defun emud-xml-parse-region (buffer start)
+  (let (region-start
 	region-end 
 	node-name
 	arg-string
@@ -434,8 +473,22 @@
 				   (list last-child)))
 			       child)
 	      last-child nil))
-	(t
-	 (setq last-child (concat last-child
+       ((looking-at emud-prompt-pattern)
+	(setq child
+	      (list (list 'PROMPT nil
+			  (buffer-substring-no-properties
+			   (match-beginning 0)
+			   (match-end 0)))))
+	(goto-char (match-end 0))
+	(setq children (append children
+			       (when last-child
+				 (if top-level
+				     (list (list 'NOXML nil last-child))
+				   (list last-child)))
+			       child)
+	      last-child nil))
+       (t
+	(setq last-child (concat last-child
 					
 					(emud-xml-parse-children-str stop))))))
     (append children (when last-child
@@ -498,10 +551,9 @@
 	(arg-end))
     (forward-char 1)
     (setq arg-end
-	  (if (search-forward "<" stop t)
-	      (progn
-		(forward-char -1)
-		(point))
+	  (if (re-search-forward 
+	       (concat emud-prompt-pattern "\\|<" ) stop t)
+	      (match-beginning 0)
 	    stop))
     (goto-char arg-end)
     (buffer-substring-no-properties arg-start arg-end)))
@@ -518,10 +570,7 @@
       (setq emud-xml-list (append emud-xml-list xml))
       (setq xml-curr-char region-stop)
       (emud-do-xml proc xml)
-      (when (and emud-xml-get-command-flag  emud-xml-command-queue)
-	(setq emud-last-command (pop emud-xml-command-queue))
-	(setq emud-xml-get-command-flag nil)
-	(run-hooks 'emud-new-command-hook))
+    
       (setq xml-list 
 	    (emud-xml-parse-region2 xml-buffer xml-curr-char)))
     xml-curr-char))
