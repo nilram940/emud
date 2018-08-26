@@ -82,6 +82,9 @@
     (unless emud-curr-map 
       (setq emud-curr-map (make-emud-map)))
     (setq emud-map-curr-room nil
+	  emud-map-room-info nil
+	  emud-map-last-cmd nil
+	  emud-map-ship-exit nil
 	  emud-mapping-flag t)
 
     (emud-add-trigger "A dark room" 'emud-map-dark-room)
@@ -208,6 +211,7 @@
 
 (defun emud-map-set-room-info (tag data)
   (let (assoc delta)
+    (emud-warn (format "ADD-INFO: Setting %s to %s" tag data))
     (cond
      ((setq assoc (assq tag emud-map-room-info))
       (emud-warn (format "Rewriting %s" tag))
@@ -216,7 +220,6 @@
       (when (and (eq tag 'cmd)
 		 (setq delta (cdr (assq data emud-map-directions))))
 	(setq emud-map-coord (emud-add-vec emud-map-coord delta)))
-	;(emud-warn (format "Setting cmd to %s" data)))
       (setq emud-map-room-info 
 	    (cons (cons tag data) emud-map-room-info))))))
 
@@ -357,7 +360,8 @@
 	dest-number)
 					;room number of destination room
 
-	
+    ;;(when (and (not last-cmd) emud-xml-command-queue)
+    ;;  (setq last-cmd (intern (pop emud-xml-command-queue))))
      (emud-warn (format "(%d) %s->%s%s: cmd-Q:%s" (if source-room (emud-room-number source-room) -1) last-cmd dest-short
 			dest-exits emud-xml-command-queue))
     (setq emud-map-room-info nil)
@@ -616,7 +620,7 @@
 	  (siblings
 	   (gethash (emud-room-short room) (emud-map-sibling-hash map))))
       (if (and siblings (not (listp siblings)))
-	  (aref (emud-map-arr map) siblings)
+	  (emud-map-get-room map siblings)
 	(if hole
 	    (progn
 	      (setq number (pop hole))
@@ -626,12 +630,15 @@
 	  (when (>= (emud-map-last map) (emud-map-size map))
 	    (emud-map-grow map)))
 	
-	(aset (emud-map-arr map) number room)
+	(setf (emud-map-get-room map number) room)
 	(setf (emud-room-number room) number)
 	
 	(if siblings
 	    (nconc siblings (list number))
-	  (setq siblings (list nil number))
+	  (setq siblings (if (string-match "maze" (emud-room-short room))
+			     (list 'maze number)
+			   (list nil number)))
+			   
 	  (puthash (emud-room-short room) 
 		   siblings (emud-map-sibling-hash map)))
 	
