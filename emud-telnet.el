@@ -271,6 +271,7 @@ Normally input is edited in Emacs and sent a line at a time."
       (setq process (get-buffer-process (current-buffer)))
       (set-process-filter process 'emud-initial-filter)
       (setq emud-xml-buffer (get-buffer-create (concat "*" name "-xml*")))
+      (emud-xml-init)
       (save-excursion
 	(set-buffer emud-xml-buffer)
 	(erase-buffer))
