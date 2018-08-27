@@ -674,10 +674,14 @@
   "Checks room entrances for possible destinations of the last exit command"
   (let ((siblings (gethash short (emud-map-sibling-hash map)))
 	(rev-cmd (cdr (assq last-cmd emud-map-reverse)))
-	sibling)
-    (and siblings rev-cmd
+	(source-siblings (emud-room-siblings room))
+	sibling
+	dest-numbers)
+    (and siblings rev-cmd (not (eq (car source-siblings) 'maze))
 	 (setq sibling (cdr (assq rev-cmd (emud-room-entrances room))))
-	 (car (intersection sibling siblings)))))
+	 (setq dest-numbers (intersection sibling siblings))
+	 (unless (cdr dest-numbers)
+	   (car dest-numbers)))))
 
 (defun emud-map-add-room (map room)
   "Function adds room to the map:
