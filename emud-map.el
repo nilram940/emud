@@ -61,6 +61,12 @@
   number alias short type obv-exits long coord exits entrances 
   siblings extra)
 
+(defmacro emud-room-cmd-entrance (room cmd)
+  `(cdr (assq ,cmd (emud-room-entrances ,room))))
+
+(defmacro emud-room-cmd-exit (room cmd)
+  `(cdr (assq ,cmd (emud-room-exits ,room))))
+
 (defmacro emud-map-get-room (map number)
   `(aref (emud-map-arr ,map) ,number))
 
@@ -600,6 +606,70 @@
 	  (emud-map-merge-map-rooms map main 
 				    (aref (emud-map-arr map) merge)))))))
 
+(defun emud-map-check-sibling-entrances-new (map source-room last-cmd dest-room)
+  "Compiles list of entances to new-room and checks siblings to create
+   possible merge list"
+  (let ((dest-siblings (emud-room-siblings dest-room))
+					; siblings of the destination room
+	(source-siblings (emud-room-siblings source-room))
+					; siblings of the source room
+	main-room
+					; The principle room in the merge
+					; process this room will be kept and
+					; not merged
+	main-number
+					; The number for the main-room
+	sibling-room
+					; working variable containing rooms
+					; from the destination siblings being
+					; considered from merge
+	sibling-entrances
+					; list of entrances leading to siblings
+					; via last-cmd
+	merge-list
+					; List of room numbers to attempt to
+					; merge
+	merge-number
+					; Room number of room we are attempting
+					; to merge with main 
+	)
+    (unless (or (car dest-siblings)
+		(car source-siblings)
+		(equal (list (emud-room-number source-room))
+		       (cdr source-siblings)))
+      ;;Only check rooms that are not sibling adjacent and
+      ;; skip if source room has no siblings.
+      
+      (setq source-siblings (cdr source-siblings)
+	    dest-siblings (cdr dest-siblings)) ; remove flag from siblings lists
+      (while dest-siblings
+	;; Go through each sibling of destination-room and collect all
+	;; entrances using last-cmd
+	(setq sibling-room (emud-map-get-room map (pop dest-siblings)))
+	(setq sibling-entrances 
+	      (append sibling-entrances 
+		      (emud-room-cmd-entrance last-cmd sibling-room))))
+      (when (setq merge-list (intersection source-siblings sibling-entrances))
+	;; Check the list of entrances against all siblings of the source room
+	;; and attempt to merge those that match.
+	;; This means that given source -cmd-> dest, there is a sibling such
+	;; that sibling -cmd-> dest and so source and sibling are possibly
+	;; the same room  
+	(setq main-number (apply 'min merge-list))
+	;; Find the smallest number in the merge list and make this the
+	;; number for the primary room
+
+	(setq merge-list (delete main-number merge-list))
+	;; delete the main room from the merge list to avoid attemping to
+	;; merge main with itself
+	(setq main-room (emud-map-get-room map main-number))
+	(while (setq merge-number (pop merge-list))
+	  ;; Go through the merge list and attempt to merge it with 
+	  ;; attempt to merge each room with main
+	  (emud-map-merge-map-rooms map main-room 
+				    (emud-map-get-room map merge-number))))))
+    dest-room)
+
 (defun emud-map-check-entrances (map room last-cmd short)
   "Checks room entrances for possible destinations of the last exit command"
   (let ((siblings (gethash short (emud-map-sibling-hash map)))
@@ -742,6 +812,70 @@
 	  (unless (memq number (emud-room-siblings room1))
 	    (setf (emud-map-hole map) 
 		  (append (emud-map-hole map) (list number)))))))))
+
+(defun emud-map-merge-map-rooms-new (map main-room target-room)
+  (let ((target-number (emud-room-number target-room))
+					; Room number for target room
+	alias
+	
+	merge-list
+					; List of pairs to be merged of the form
+					; (main-room . target-room)
+	merge-cons
+					; A single cons from the merge list
+	)
+    (setq merge-cons (cons (emud-room-number main-room)
+		      target-number))
+    (setq merge-list (list merge-cons))
+    ;; create intial merg list consisting of a single cons
+    ;; (main-room . target-room)
+    
+    (while (setq merge-cons (pop merge-list))
+      ;; Go though each cons in the merge list and attempt to merge the pair
+      (setq main-room    (emud-map-get-room map (car merge-cons))
+	    target-room  (emud-map-get-room map (cdr merge-cons)))
+      ;; Extract the main-room and target-room from the cons pair
+      (setq target-number (cdr merge-cons))
+      (when (and main-room target-room)
+	(if (eq main-room target-room)
+	    (emud-warn "Attempt to merge room with itself")
+	  (emud-warn (format "Merging %s: %d %d" (emud-room-short main-room)
+			   (emud-room-number main-room) target-number))
+	  (when (eq target-room emud-map-curr-room)
+	    (setq emud-map-curr-room main-room))
+	  ;; When the global current room is the target room move the
+	  ;; current room to the main room
+
+	  (if (setq alias (rassq target-number (emud-map-alias-list map)))
+	      (setcdr alias (emud-room-number main-room)))
+	  ;; If we have an alias that points to the target room, move it to the
+	  ;; main room
+
+	  (setq merge-list 
+		(append (emud-map-merge-rooms map main-room target-room) merge-list))
+	 ;; perform the merge and build a list of necessary merges to perform
+
+	  (when (emud-room-coord target-room)
+	    (setf (emud-room-coord main-room) (emud-room-coord target-room)))
+	  ;; Move the coordinate of the target room to the main room
+	  ;; This likely needs more sanity checking.
+	  
+	  (emud-map-fix-exits map main-room target-room)
+	  ;; fix the exits of rooms leading to target-room
+
+	  (emud-map-fix-entrances map main-room target-room)
+	  ;; fix the entrances of rooms entered from target-room
+
+	  (setf (emud-map-get-room map target-number) nil)
+	  ;; remove the target room  from the map.
+
+	  (unless (memq target-number (emud-room-siblings main-room))
+	    ;; Reclaim target rooms spot in the map. Unless it is still a
+	    ;; sibling of the main room -- this last part should not happen.
+	    ;; This test may be obsolete.
+
+	    (setf (emud-map-hole map) 
+		  (append (emud-map-hole map) (list target-number)))))))))
 	
 
 				    
@@ -795,6 +929,135 @@ lead to room1."
 	     (emud-warn "Suspicious entrance list")))))))
     
 	      
+(defun emud-map-merge-rooms-new (map main-room target-room)
+  (let ( main-exits
+	 target-exits
+	 main-exit
+	 target-exit 
+	 main-entrances
+	 target-entrances
+	 main-entrance
+	 target-entrance
+	 entrances
+	 merge
+
+	 )
+    ;; Begin by checking room properties of the rooms to be merged and warn
+    ;; about suspicious differences. Rooms with different shorts should NOT be
+    ;; merged.
+    (unless (string= (emud-room-short main-room) (emud-room-short target-room))
+      (emud-warn "Merging rooms with different shorts"))
+    (when (and (emud-room-obv-exits target-room)
+	       (not (string= (emud-room-obv-exits main-room) 
+			     (emud-room-obv-exits target-room))))
+      (emud-warn "Merging rooms with different obv-exits"))
+    (unless (string= (emud-room-long main-room) (emud-room-long target-room))
+      (emud-warn "Merging rooms with different long"))
+    
+    (setq main-exits (emud-room-exits main-room))
+    (setq target-exits (emud-room-exits target-room))
+    ;; Collect the exits for the main and target rooms.
+    (setf (emud-room-exits main-room) 
+	  (union main-exits target-exits :test 'equal))
+    ;; Combine the exits and set the the combined exits as the new exit
+    ;; list for main room
+    (while (setq main-exit (pop main-exits))
+      ;; Foreach exit from the original main rooms exit list, compare it to
+      ;; any corresponding but non-equal in the target room 
+      (setq target-exit (assq (car main-exit) target-exits))
+      (when (and target-exit (not (equal main-exit target-exit)))
+	;; When a cooresponding exit is found choose the smaller numbered exit
+	;; to keep and add the destination rooms of the exit to the merge list
+	(cond 
+	 ((> (cdr target-exit) (cdr main-exit))
+	  (setf (emud-room-exits main-room) 
+		(delete target-exit (emud-room-exits main-room)))
+	  (setq merge
+		(append merge
+			(list (cons (cdr main-exit) (cdr target-exit))))))
+	 ;; If the main exit has a smaller number remove the target exit from
+	 ;; the main exit list and add the destination rooms to the merge list
+	 ;; in accending order
+	 (t
+	  (setf (emud-room-exits main-room) 
+		(delete main-exit (emud-room-exits main-room)))
+	  (setq merge
+		(append merge
+			(list (cons (cdr target-exit) (cdr main-exit)))))))
+	;; If the target exit has a smaller number remove the main exit from
+	;; the main exit list and add the destination rooms to the merge list
+	;; in accending order
+	))
+    (setq main-entrances (emud-room-entrances main-room)) 
+    (setq target-entrances (emud-room-entrances target-room))
+    ; Collect the entrances from main and target rooms.
+    (while (setq main-entrance (pop main-entrances))
+      (setq target-entrance (assq (car main-entrance) target-entrances))
+      ;; ADD DOCUMENTATION for below.
+      ;; Likely needs to be split into a merge entrance function.
+      (cond
+       (target-entrance
+	(setq target-entrances (delete target-entrance target-entrances))
+	(let* ((ent-list (union (cdr main-entrance) (cdr target-entrance)))
+	       (ent-list2 ent-list)
+	       ent1 ent2 room siblings)
+	  (while ent-list
+	    (setq ent1 (pop ent-list))
+	    (setq room (aref (emud-map-arr map) ent1))
+	    (cond
+	     (room
+	      (setq siblings (intersection (emud-room-siblings room) ent-list))
+	      (when siblings
+		(setq ent2 (car siblings))
+		(setq ent-list (delete ent2 ent-list))
+		(cond 
+		 ((> ent2 ent1)
+		  (setq merge (union merge (list (cons ent1 ent2))))
+		  (setq ent-list2 (delete ent2 ent-list2)))
+		 (t
+		  (setq merge (union merge (list (cons ent2 ent1))))
+		  (setq ent-list2 (delete ent1 ent-list2))))))
+	     (t
+	      (emud-warn (format "Bad entrance %d -> %d, deleting (merge-rooms)" 
+			       ent1 (emud-room-number main-room)))
+	      (setq ent-list2 (delete ent1 ent-list2)))))
+	  (setq entrances (append entrances 
+				  (list 
+				   (cons (car main-entrance) ent-list2))))))
+       (t
+	(setq entrances (append entrances 
+				(list main-entrance))))))
+    
+    (setq entrances (append entrances target-entrances))
+    (setf (emud-room-entrances main-room) entrances)
+    
+    (setf (emud-room-siblings main-room)
+	  (delete (emud-room-number target-room)
+		  (emud-room-siblings main-room)))
+    ;; Delete the target-room number from the main-room's sibling list
+
+    ;; add DOCUMENTATION for below
+    ;; Clean up exits and entrances?
+    ;; This looks like a candidate for a new function
+    
+    (setq main-exits (emud-room-exits main-room))
+    (while main-exits
+      (setq main-exit (pop main-exits))
+      (setq main-entrance (assq (cdr 
+                              (assq (car main-exit) emud-map-reverse)) entrances))
+      (when main-entrance
+        (let (main room siblings)
+          (setq room (aref (emud-map-arr map) (cdr main-exit)))
+          (setq siblings (intersection (emud-room-siblings room) main-entrance))
+          (when siblings
+            (setq siblings (union (list (cdr main-exit)) siblings))
+            (setq main (apply 'min siblings))
+            (setq siblings (delete main siblings))
+            (while siblings
+              (setq merge (append merge 
+                                  (list (cons main (pop siblings)))))))))) 
+   merge))
+
 (defun emud-map-merge-rooms (map room1 room2)
   (let ( exits1 exits2 exit1 exit2 
 	 entrances1 entrances2 entrance1 entrance2
