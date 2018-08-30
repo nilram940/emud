@@ -1129,8 +1129,8 @@ lead to room1."
 	(setq merged-entrances (append merged-entrances 
 					 (list 
 					  (cons (car main-entrance)
-					       merged-entrances)))))
-       ;; build an entrance containg (cmd . main-list) and add it to the 
+					       main-list)))))
+       ;; build an entrance containing (cmd . main-list) and add it to the 
        ;; merged entrance list
        
        (t ; no entrance in the target room match the command
