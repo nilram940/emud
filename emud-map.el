@@ -117,6 +117,8 @@
 	  emud-mapping-flag t)
 
     (emud-add-trigger "A dark room" 'emud-map-dark-room)
+    (emud-add-trigger "It is too dark." 'emud-map-dark-room)
+    (emud-add-trigger "mirror tricked you" 'emud-map-lost)
     (emud-add-trigger "Shell doing:" 'emud-map-shell-doing)
     (emud-add-trigger "We have arrived" 'emud-map-ship-trigger)
     
@@ -151,6 +153,8 @@
  (when emud-mapping-flag
    (setq emud-mapping-flag nil)
    (emud-del-trigger "A dark room.")
+   (emud-del-trigger "It is too dark." )
+   (emud-del-trigger "mirror tricked you" )
    (emud-del-trigger "Shell doing:")
    (emud-del-trigger "We have arrived")
 
@@ -207,6 +211,11 @@
 			   (assq last-cmd
 				 (emud-room-exits room))))
 	    (aref (emud-map-arr map) (cdr new-room))))))
+
+(defun emud-map-lost (proc string)
+  (setq emud-map-last-cmd nil
+	emud-map-curr-room nil
+	emud-map-room-info nil))
 
 
 (defun emud-map-new-command ()
@@ -718,10 +727,10 @@
       ;; Extract the main-room and target-room from the cons pair
       (setq target-number (cdr merge-cons))
       (when (and main-room target-room)
+	(emud-warn (format "Merging %s: %d %d" (emud-room-short main-room)
+			   (emud-room-number main-room) target-number))
 	(if (eq main-room target-room)
 	    (emud-warn "Attempt to merge room with itself")
-	  (emud-warn (format "Merging %s: %d %d" (emud-room-short main-room)
-			   (emud-room-number main-room) target-number))
 	  (when (eq target-room emud-map-curr-room)
 	    (setq emud-map-curr-room main-room))
 	  ;; When the global current room is the target room move the
@@ -732,10 +741,6 @@
 	  ;; If we have an alias that points to the target room, move it to the
 	  ;; main room
 
-	  (setq merge-list 
-		(append (emud-map-merge-rooms map main-room target-room) merge-list))
-	  (emud-warn (format "merge-list: <%S>" merge-list))
-	 ;; perform the merge and build a list of necessary merges to perform
 
 	  (when (emud-room-coord target-room)
 	    (setf (emud-room-coord main-room) (emud-room-coord target-room)))
@@ -748,6 +753,11 @@
 	  (emud-map-fix-entrances map main-room target-room)
 	  ;; fix the entrances of rooms entered from target-room
 
+	  (setq merge-list 
+		(append (emud-map-merge-rooms map main-room target-room) merge-list))
+	  (emud-warn (format "merge-list: <%S>" merge-list))
+
+	  ;; perform the merge and build a list of necessary merges to perform
 	  (setf (emud-map-get-room map target-number) nil)
 	  ;; remove the target room  from the map.
 
@@ -1158,7 +1168,7 @@ lead to room1."
   (emud-map-merge-all-siblings emud-curr-map emud-map-curr-room))
 
 (defun emud-map-check-coord-siblings (map source-room cmd short)
-  "When moving from source-room into room with short description short,
+  "When moving from source-room into room with short description, short,
 check it's sibling list for room with appropriate coordinates"
   (let ((siblings (emud-map-get-siblings map short))
 	(source-coord (emud-room-coord source-room))
@@ -1418,7 +1428,7 @@ check it's sibling list for room with appropriate coordinates"
 			   (emud-room-exits room))
 		   (format "                               :entrances '%S\n"
 			   (emud-room-entrances room))		 
-		   (format "                               :coord%s\n"
+		   (format "                               :coord %s\n"
 			   (emud-room-coord room))		 
 		   (format "                               :extra '%S\n"
 			   (emud-room-extra room))		 
