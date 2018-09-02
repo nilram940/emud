@@ -476,6 +476,8 @@
   ;; Check if the the current room has a coordinate.
   ;; if so update the global coordinate. Keep in mind
   ;; the global coordinate is NOT authorative.
+  (emud-map-room-summary emud-curr-map emud-map-curr-room
+			 (get-buffer-create "*Emud-room*"))
   (when (and emud-map-curr-room (emud-room-coord emud-map-curr-room))
     (setq emud-map-coord (emud-room-coord emud-map-curr-room)))
   emud-map-curr-room)
@@ -1752,3 +1754,37 @@ check it's sibling list for room with appropriate coordinates"
       (insert (format "%d : %s\n" 
 		      xml-point
 		      string)))))
+
+(defun emud-map-room-summary (map room buffer)
+  (with-current-buffer buffer
+    (let ((room-exits (emud-room-exits room))
+	  (room-entrances (emud-room-entrances room))
+	  room-exit
+	  room-entrance
+	  adjacent-room
+	  )
+      (erase-buffer)
+      (insert (format "(%3d) %s %s\n"
+		      (emud-room-number room)
+		      (emud-room-short room)
+		      (emud-room-obv-exits room)))
+      (insert (format "Coordinates: %s\n" (emud-room-coord room)))
+      (insert "Exits:\n")
+      (while (setq room-exit (pop room-exits))
+	(setq adjacent-room (emud-map-get-room map (cdr room-exit)))
+	(insert (format "\t%s:\t%s\n" (car room-exit)
+			(emud-room-short adjacent-room)))))))
+	
+			
+(defun emud-map-add-note (note)
+  (interactive "sNote:")
+  (let ((extra (emud-room-extra emud-map-curr-room)))
+    (setf (emud-room-extra emud-map-curr-room)
+     (if extra
+	 (plist-put extra ':note note)
+       (list :note note)))))
+   
+	      
+      
+  
+  
