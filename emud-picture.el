@@ -27,10 +27,11 @@
       (insert "\n"))
     emud-picture-buffer))
 
-(defun emud-draw-map (map &optional from)
+(defun emud-draw-map (map &optional from length)
   (let (room vec map-arr 
-	     exit exits room-stack been-there path)
+	     exit exits room-stack been-there path len)
     (setq room  (or from 0)
+	  len        0
 	  prev-room  nil
 	  prev-coord nil
 	  map-arr    (emud-map-arr map)
@@ -46,8 +47,9 @@
 	    prev-coord coord)
       (puthash room 't been-there)
       (when exits
-	(push (vector room path exits coord) room-stack))
+	(push (vector room path exits coord len) room-stack))
       (setq path (append path (list (car exit)))
+	    len  (1+ len)
 	    room (cdr exit)
 	    exits (emud-room-exits (aref map-arr room))
 	    coord (if (setq dir-vec 
@@ -60,13 +62,15 @@
 		      ;(insert "\n"))
 		    coord))
       (when (or (gethash room been-there);are we going in circles?
-		(not exits)) ;or out of exits?
+		(not exits)           ;or out of exits?
+		(and length (> len length))); or gone too far 
 	(if room-stack ;are there any exits we skiped?
 	    (setq vec   (pop room-stack)
 		  room  (aref vec 0)
 		  path  (aref vec 1)
 		  exits (aref vec 2)
-		  coord (aref vec 3))
+		  coord (aref vec 3)
+		  len   (aref vec 4))
 	  (setq exits nil ;no more rooms to check
 		path nil)))) ;bail out
     path))
