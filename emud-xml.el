@@ -192,8 +192,9 @@
       (cond
        ((stringp child)
 	(insert-before-markers (if face 
-				   (propertize child 'face face)
+				   (propertize child 'font-lock-face face)
 				 child))
+				 
 	
 	(when  emud-triggers
 	  (emud-run-triggers proc child)))
