@@ -1757,23 +1757,28 @@ check it's sibling list for room with appropriate coordinates"
 
 (defun emud-map-room-summary (map room buffer)
   (with-current-buffer buffer
-    (let ((room-exits (emud-room-exits room))
-	  (room-entrances (emud-room-entrances room))
+    (let (room-exits 
+	  room-entrances 
 	  room-exit
 	  room-entrance
 	  adjacent-room
 	  )
       (erase-buffer)
-      (insert (format "(%3d) %s %s\n"
-		      (emud-room-number room)
-		      (emud-room-short room)
-		      (emud-room-obv-exits room)))
-      (insert (format "Coordinates: %s\n" (emud-room-coord room)))
-      (insert "Exits:\n")
-      (while (setq room-exit (pop room-exits))
-	(setq adjacent-room (emud-map-get-room map (cdr room-exit)))
-	(insert (format "\t%s:\t%s\n" (car room-exit)
-			(emud-room-short adjacent-room)))))))
+      (when room
+	  (progn
+	    (insert (format "(%3d) %s %s\n"
+			    (emud-room-number room)
+			    (emud-room-short room)
+			    (emud-room-obv-exits room)))
+	    (insert (format "Coordinates: %s\n" (emud-room-coord room)))
+	    (insert "Exits:\n")
+	    (setq room-exits (emud-room-exits room))
+	    (while (setq room-exit (pop room-exits))
+	      (setq adjacent-room (emud-map-get-room map (cdr room-exit)))
+	      (insert (format "\t%s:\t%s\n" (car room-exit)
+			      (emud-room-short adjacent-room))))
+	    (insert (format "\nextra: %S\n" (emud-room-extra room))))))))
+	
 	
 			
 (defun emud-map-add-note (note)
