@@ -183,7 +183,8 @@ rejecting one login and prompting again for a username and password.")
 	   (ws (and w (window-start w))))
       (with-current-buffer emud-xml-buffer
 	(goto-char (point-max))
-	(insert (delete ?\r string)))
+	(insert (replace-regexp-in-string "\n$" "<BR/>\n"
+					  (delete ?\r string))))
 	;;(insert "<BREAK/>"))
       (goto-char last-insertion)
       (setq emud-xml-curr-char
