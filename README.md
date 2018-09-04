@@ -13,7 +13,7 @@ for a path enter `~/emud`.
 
 # Use
 
-In order to start emud. First load the code this most easily
+In order to start emud. First load the code. This is most easily
 accomplished by adding something like the following to your `.emacs`:
 
 ```lisp
@@ -29,7 +29,7 @@ accomplished by adding something like the following to your `.emacs`:
 This will load the emud code and the mapping code and start the
 mapping code when emud starts.
 
-To start emud type M-x emud and when prompted enter a name from the list (i.e. nanny)
+To start emud type M-x emud and when prompted enter a name from the list (e.g. nanny)
 
 # XML
 
