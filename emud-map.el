@@ -1214,10 +1214,10 @@ check it's sibling list for room with appropriate coordinates"
 	    (emud-map-coord-adj map adj-room)))))))
 	
 
-  (defun emud-map-walk-coord (dir coord)
-    (let (delta)
-      (when (setq delta (assq dir  emud-map-directions))
-	(emud-add-vec (cdr delta) coord))))
+(defun emud-map-walk-coord (dir coord)
+  (let (delta)
+    (when (setq delta (assq dir  emud-map-directions))
+      (emud-add-vec (cdr delta) coord))))
       
     
 (defun emud-map-merge-coord-siblings (map room)
@@ -1345,7 +1345,7 @@ check it's sibling list for room with appropriate coordinates"
 	  
 	  (if room-stack		       ;are there any exits we skiped?
 	      (progn
-					;(print path)
+		;(print path)
 		(setq vec        (pop room-stack)
 		      room       (aref vec 0)
 		      path       (aref vec 1)
@@ -1357,6 +1357,40 @@ check it's sibling list for room with appropriate coordinates"
     (if path
 	(emud-map-walk map from to (1- (length path)) path)
       old-path)))
+
+(defun emud-map-walk2 (map from to)
+  (let (paths
+	iter-paths
+	room
+	exits
+	exit
+	path
+	new-path
+	apath
+	been-there (list from))
+    
+    (setq paths (list (list from)))
+    (while (and paths (not (setq apath (assoc to paths))))
+      (setq iter-paths paths)
+      ;(print paths)
+      (setq paths nil)
+      (while (setq path (pop iter-paths))
+	(setq room (emud-map-get-room map (car path)))
+	(setq exits (emud-room-exits room))
+	(while (setq exit (pop exits))
+	  (unless (member (cdr exit) been-there)
+	    (setq new-path (cons (car exit) (cdr path)))
+	    (setq new-path (cons (cdr exit) new-path))
+
+	    (setq paths (cons new-path paths))
+	    (push (cdr exit) been-there)))))
+    (nreverse (cdr apath))))
+
+      
+    
+    
+    
+    
 		 
 (defun emud-map-grow (map)
   (setf (emud-map-arr map) 
@@ -1782,7 +1816,7 @@ check it's sibling list for room with appropriate coordinates"
 	
 			
 (defun emud-map-add-note (note)
-  (interactive "sNote:")
+  (interactive "sNote: ")
   (let ((extra (emud-room-extra emud-map-curr-room)))
     (setf (emud-room-extra emud-map-curr-room)
      (if extra
