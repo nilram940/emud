@@ -655,7 +655,7 @@
     
     ((not (setq number (cdr (assq cmd exits))))
      (emud-map-add-entrance new-room cmd room)
-     (cons (cons cmd exit) exits))
+     (setf (emud-room-exits room) (cons (cons cmd exit) exits)))
 
     ((listp number)
      (emud-map-add-entrance new-room cmd room)
@@ -678,7 +678,8 @@
     
     ((not (setq number (cdr (assq cmd entrances))))
      (nconc entrances (list (list cmd entrance))))
-    (t
+    
+    ((not (member number entrances)) 
      (emud-warn (format "Adding multiple '%s entrances to room %d"
 			cmd (emud-room-number room)))
      (nconc number (list entrance))))))
@@ -1863,12 +1864,11 @@ check it's sibling list for room with appropriate coordinates"
 	coord-list
       (setq coord-list (cons (cons coord number) coord-list))
       (dolist (exit exits coord-list)
-	(setq coord-list (collect-coord (cdr exit) coord-list))))))
+	(setq coord-list (emud-map-collect-coord map (cdr exit) coord-list))))))
 	 
 
 (defun emud-map-add-coord-exits (map room)
-    (let* (room 
-	   coord
+    (let* (coord
 	   oexits
 	   exits
 	   numbers
