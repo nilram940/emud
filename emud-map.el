@@ -655,7 +655,7 @@
     
     ((not (setq number (cdr (assq cmd exits))))
      (emud-map-add-entrance new-room cmd room)
-     (nconc exits (list (cons cmd exit))))
+     (cons (cons cmd exit) exits))
 
     ((listp number)
      (emud-map-add-entrance new-room cmd room)
@@ -820,7 +820,7 @@ lead to room1."
 	(delete old-entrance entrances)
 	(unless (member new-entrance entrances)
 	  (nconc entrances (list new-entrance))
-	   (when (> 2 (length entrances))
+	   (when (cddr entrances); (> 2 (length entrances))
 	     (emud-warn "Suspicious entrance list")))))))
     
 	      
@@ -1314,12 +1314,12 @@ check it's sibling list for room with appropriate coordinates"
      
 (defun emud-map-path (to)
   (interactive "nTo room: ")
-  (let ((path (emud-map-walk emud-curr-map (emud-room-number emud-map-curr-room) to))
+  (let ((path (emud-map-walk2 emud-curr-map (emud-room-number emud-map-curr-room) to))
 	(proc (get-buffer-process (current-buffer)))
 	rev-path step)
     (when (and (not path)
 	       (y-or-n-p "Path not found.  Try reverse? "))
-           (setq path (emud-map-walk emud-curr-map to 
+           (setq path (emud-map-walk2 emud-curr-map to 
 				     (emud-room-number emud-map-curr-room)))
      (while path
        (if (setq step (cdr (assq (pop path) emud-map-reverse)))
@@ -1331,7 +1331,9 @@ check it's sibling list for room with appropriate coordinates"
     (if path
 	(progn
 	  (setq emud-map-last-room (emud-room-number emud-map-curr-room))
-	  (emud-send-list proc (mapcar (lambda (sym) (format "%s" sym)) path)))
+	  (emud-simple-send proc
+			    (concat "do "
+				  (mapconcat (lambda (sym) (format "%s" sym)) path ", "))))
       (message "Path not found."))))
 
 
@@ -1383,8 +1385,8 @@ check it's sibling list for room with appropriate coordinates"
 
 (defun emud-map-walk2 (map from to)
   (let (paths
-	iter-paths
 	room
+	iter-paths
 	exits
 	exit
 	path
@@ -1618,7 +1620,7 @@ check it's sibling list for room with appropriate coordinates"
 	    (when (setq alias (rassq count (emud-map-alias-list map)))
 	      (setcdr alias number))
 	    (setq hole (cons count hole)))
-	(setq hole (cons count hole (list count))))
+	(setq hole (cons count hole)))
       (setq count (1+ count)))
     (setq hole (sort hole '>))
     (while (and  hole 
@@ -1849,7 +1851,49 @@ check it's sibling list for room with appropriate coordinates"
      (if extra
 	 (plist-put extra ':note note)
        (list :note note)))))
-   
+
+(defun emud-map-collect-coord (map number coord-list)
+  (let* ((room (emud-map-get-room map number))
+	 (coord (emud-room-coord room))
+	 (exits (emud-room-exits room))
+	 exit)
+					;(print coord-list)
+    
+    (if  (or (not coord) (rassoc number coord-list))
+	coord-list
+      (setq coord-list (cons (cons coord number) coord-list))
+      (dolist (exit exits coord-list)
+	(setq coord-list (collect-coord (cdr exit) coord-list))))))
+	 
+
+(defun emud-map-add-coord-exits (map room)
+    (let* (room 
+	   coord
+	   oexits
+	   exits
+	   numbers
+	   number
+	   dest-coord
+	   coord-list
+	   exit)
+      
+      (setq coord-list (emud-map-collect-coord map (emud-room-number room) nil))
+      (setq numbers (mapcar 'cdr coord-list))
+      (dolist (number numbers)
+	(setq room (emud-map-get-room emud-curr-map number)
+	      coord (emud-room-coord room)
+	      oexits (emud-room-obv-exits room)
+	      exits (mapcar 'intern
+			    (split-string
+			     (replace-regexp-in-string "[<>]" "" oexits))))
+	(when coord
+	  (dolist (exit exits)
+	    (when (and (not (assq exit (emud-room-exits room)))
+		       (setq dest-coord (emud-map-walk-coord exit coord))
+		       (setq dest-number (assoc dest-coord coord-list)))
+	      (setq dest-number (cdr dest-number))
+	      (emud-map-add-exit room exit (emud-map-get-room emud-curr-map dest-number))))))))
+
 	      
       
   
