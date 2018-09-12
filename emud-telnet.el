@@ -2,7 +2,7 @@
 ;;; $Revision: 1.3.1.4 $
 
 ;;; networking code for emud. Largely taken from telnet.el
-
+(setq lexical-binding t)
 (require 'comint)
 
 (defvar emud-partial-command "")

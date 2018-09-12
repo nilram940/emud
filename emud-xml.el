@@ -4,7 +4,7 @@
 
 ;; Built around the xml.el that ships with emacs 21.4 May work with others
 ;; includes work arounds for several bugs in xml.el
-
+(setq lexical-binding t)
 (require 'xml)
 
 (defconst emud-xml-string-alist 

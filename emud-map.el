@@ -1,7 +1,7 @@
 ; emud-map.el
 ;; $Id$
 ;; functions and data structures to add mapping capabilities to emud.
-
+(setq lexical-binding t)
 (require 'cl)
 (defvar emud-map-draw-flag nil)
 (defvar emud-map-path-cache nil)
