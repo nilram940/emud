@@ -453,18 +453,21 @@
 	 ;; (have the same short). Set the sibling adjacent flag if it is
 	 ;; not set already.
 
-	 (if
+	 (when
 	     (and
 	      (eq (emud-room-siblings source-room)
 		  (emud-room-siblings dest-room))
 	      (not (car (emud-room-siblings dest-room))))
 	     
-	     (setcar (emud-room-siblings source-room) t)
+	     (setcar (emud-room-siblings source-room) t))
 	     
-	   ;; If rooms are not sibling adjacent check entrances for
-	   ;; possible room merges
-	   (emud-map-check-sibling-entrances 
-	    map source-room last-cmd dest-room))))
+	 ;; If rooms are not sibling adjacent check entrances for
+	 ;; possible room merges
+	 (unless (car (emud-room-siblings source-room)))
+	     (emud-map-check-sibling-entrances 
+	      map source-room last-cmd dest-room)))
+    
+		  
        
      ;; If we determing that no move was made. Do nothing
      ))
@@ -1829,19 +1832,18 @@ check it's sibling list for room with appropriate coordinates"
 	  )
       (erase-buffer)
       (when room
-	  (progn
-	    (insert (format "(%3d) %s %s\n"
-			    (emud-room-number room)
-			    (emud-room-short room)
-			    (emud-room-obv-exits room)))
-	    (insert (format "Coordinates: %s\n" (emud-room-coord room)))
-	    (insert "Exits:\n")
-	    (setq room-exits (emud-room-exits room))
-	    (while (setq room-exit (pop room-exits))
+	(insert (format "(%3d) <%s> %s %s\n"
+			(emud-room-number room)
+			(emud-room-coord room)
+			(emud-room-short room)
+			(emud-room-obv-exits room)))
+	(insert "Exits:\n")
+	(setq room-exits (emud-room-exits room))
+	(while (setq room-exit (pop room-exits))
 	      (setq adjacent-room (emud-map-get-room map (cdr room-exit)))
 	      (insert (format "\t%s:\t%s\n" (car room-exit)
 			      (emud-room-short adjacent-room))))
-	    (insert (format "\nextra: %S\n" (emud-room-extra room))))))))
+	(insert (format "\nextra: %S\n" (emud-room-extra room)))))))
 	
 	
 			
@@ -1874,6 +1876,7 @@ check it's sibling list for room with appropriate coordinates"
 	   numbers
 	   number
 	   dest-coord
+	   dest-number
 	   coord-list
 	   exit)
       
