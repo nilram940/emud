@@ -2,6 +2,7 @@
 ;; $Id$
 ;; functions and data structures to add mapping capabilities to emud.
 (setq lexical-binding t)
+
 (require 'cl)
 (defvar emud-map-draw-flag nil)
 (defvar emud-map-path-cache nil)
@@ -432,6 +433,7 @@
 
        ;; Verify that we have both a source and destination room
        (when (and source-room dest-room)
+	 
 	 ;; Add a last command exit leading from source-room to dest-room
 	 ;; via last-cmd
 	 (emud-map-add-exit source-room
@@ -503,9 +505,7 @@
     (if (car siblings)
 	(message "Refusing to uniq difficult room.")
       (emud-map-merge-all-siblings emud-curr-map emud-map-curr-room)
-      (setf (emud-room-siblings emud-map-curr-room) number)
-      (puthash (emud-room-short emud-map-curr-room) 
-	       number (emud-map-sibling-hash emud-curr-map)))))
+      (setcar siblings 'uniq))))
 
       
 (defun emud-map-follow-exit (cmd exits map short)
@@ -614,8 +614,8 @@
 	  ;(hole nil)
 	  (siblings
 	   (gethash (emud-room-short room) (emud-map-sibling-hash map))))
-      (if (and siblings (not (listp siblings)))
-	  (emud-map-get-room map siblings)
+      (if (and siblings (eq (car siblings) 'uniq))
+	  (emud-map-get-room map (cadr siblings))
 	(if hole
 	    (progn
 	      (setq number (pop hole))
@@ -1105,7 +1105,7 @@ lead to room1."
 	;; For example if target has an entrance (e 5) and main has an
 	;; entrance (e 7). We check room 5 and find a sibling list
 	;; (nil 5 7) this indicates that rooms 5 and 7 should merge. 
-	(dolist (source-number source-list)
+	(while (setq source-number (pop source-list))
 
 	  ;; find the source room corresponding to the source-number
 	  (setq source-room
