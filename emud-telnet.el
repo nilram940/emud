@@ -7,7 +7,7 @@
 
 (defvar emud-partial-command "")
 (defvar emud-host-alist nil)
-(defvar emud-new-line "\r")
+(defvar emud-new-line "\n")
 (defvar emud-mode-map nil)
 (defvar emud-prompt-pattern
   (mapconcat 'identity
@@ -101,7 +101,7 @@ rejecting one login and prompting again for a username and password.")
 	     (error "No such host"))
 	    ((and emud-login (string-match "name:" string))
 	     (emud-filter proc string)
-	     (send-string proc (concat emud-login emud-new-line))
+	     (send-string proc (concat emud-login emud-new-line)) 
 	     (clear-this-command-keys))
 	    ((string-match "passw" string)
 	     (emud-filter proc string)
@@ -252,7 +252,60 @@ rejecting one login and prompting again for a username and password.")
 ;;;###autoload (add-hook 'same-window-regexps "\\*emud-.*\\*\\(\\|<[0-9]+>\\)")
 
 ;;;###autoload
+
 (defun emud (name)
+  "Open a network login connection to host named HOST (a string).
+Communication with HOST is recorded in a buffer `*PROGRAM-HOST*'
+where PROGRAM is the emud program being used.  This program
+is controlled by the contents of the global variable `emud-host-properties',
+falling back on the value of the global variable `emud-program'.
+Normally input is edited in Emacs and sent a line at a time."
+  (interactive "sOpen connection to host: ")
+  (let* ((host-list (assoc name emud-host-alist))
+         (host (if host-list
+                   (nth 1 host-list)   ;; Extract host from host-list (nth 1)
+                 (car (split-string name " "))))   ;; Split name into host if no host-list
+         (port (if host-list
+                   (nth 2 host-list)   ;; Extract port from host-list (nth 2)
+                 (or (cadr (split-string name " "))   ;; Extract port if available
+                     "23")))   ;; Default to port 23 if no port found
+	 (comint-delimiter-argument-list '(?\  ?\t))
+	 (buffer (get-buffer (concat "*" name "*")))
+	 process)
+    (if (and buffer (get-buffer-process buffer))
+	(switch-to-buffer (concat "*" name "*"))
+      
+
+      (setq process (el-telnet-start (concat "*" name "*")
+                                     (concat "*" name "*")
+                                     host
+                                     port
+                                     'emud-initial-filter))
+      	(switch-to-buffer (concat "*" name "*"))
+      
+      (set-process-filter process 'emud-initial-filter)
+      (setq emud-xml-buffer (get-buffer-create (concat "*" name "-xml*")))
+      (emud-xml-init)
+      (save-excursion
+	(set-buffer emud-xml-buffer)
+	(erase-buffer))
+      (setq emud-xml-list nil)
+      (setq emud-xml-curr-char 0
+	    ;emud-clear-to-send-flag t
+	    emud-command-queue nil)
+      (when host-list
+	(setq emud-login    (nth 3 host-list)
+	      emud-password (nth 4 host-list)))
+
+      ;; Don't send the `open' cmd till telnet is ready for it.
+      ;;  (accept-process-output process)
+      ;;(erase-buffer)
+      ;;(send-string process (concat "open " host "\n"))
+      (emud-mode)
+      (setq comint-input-sender 'emud-simple-send)
+      (setq emud-count emud-initial-count))))
+
+(defun emud-old (name)
   "Open a network login connection to host named HOST (a string).
 Communication with HOST is recorded in a buffer `*PROGRAM-HOST*'
 where PROGRAM is the emud program being used.  This program
